@@ -242,15 +242,8 @@ export default function App() {
 
   function printDiagram() {
     if (!svg) return;
-    const popup = window.open('', '_blank', 'noopener,noreferrer');
-    if (!popup) {
-      setStatus('Allow pop-ups to print or save as PDF');
-      return;
-    }
-
-    popup.document.write(`<!doctype html><html><head><title>${cleanOneLine(draft.title)}</title><style>body{font-family:system-ui;margin:32px}main{max-width:1200px;margin:auto}svg{max-width:100%;height:auto}</style></head><body><main>${svg}</main><script>window.onload=()=>window.print()<\/script></body></html>`);
-    popup.document.close();
-    setStatus('Print view opened');
+    window.print();
+    setStatus('Print dialog opened — choose Save as PDF to create a PDF');
   }
 
   return (
