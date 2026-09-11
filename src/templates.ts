@@ -124,6 +124,20 @@ export const templates: DiagramTemplate[] = [
     Web-->>User: Show confirmation`,
   },
   {
+    id: 'system-architecture',
+    name: 'System architecture',
+    audience: 'Technical',
+    purpose: 'Show the main services and resources in a small application architecture.',
+    type: 'Architecture',
+    source: `architecture-beta
+    group app(cloud)[Application]
+    service web(server)[Web app] in app
+    service api(server)[API] in app
+    service db(database)[Database] in app
+    web:R --> L:api
+    api:R --> L:db`,
+  },
+  {
     id: 'project-plan',
     name: 'Project plan',
     audience: 'Technical',
