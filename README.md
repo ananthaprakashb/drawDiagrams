@@ -32,7 +32,7 @@ Mermaid is powerful, portable, and text-based, but a blank Mermaid editor still 
 | Teachers | Lesson flow, Concept map | Flowchart, Mind map |
 | Authors | Story timeline, Article structure | Timeline, Flowchart |
 | Public service | Public service path, Community journey | Flowchart, User journey |
-| Technical | System request, Project plan | Sequence diagram, Gantt |
+| Technical | System request, System architecture, Project plan | Sequence diagram, Architecture, Gantt |
 
 The template catalog is intentionally data-driven in `src/templates.ts` so community contributors can add useful patterns without changing the editor itself.
 
