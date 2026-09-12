@@ -1,14 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import mermaid from 'mermaid';
-import type { MLCEngineInterface } from '@mlc-ai/web-llm';
 import { audiences, templates, type Audience, type DiagramTemplate } from './templates';
-import { CPU_DIAGRAM_SYSTEM_PROMPT, DIAGRAM_SYSTEM_PROMPT, extractMermaid, LOCAL_MODEL, plainMermaidLabels } from './diagramAi';
-import { generateHostedDiagram, HOSTED_AI_URL } from './hostedAi';
+import { plainMermaidLabels } from './mermaidLabels';
 import { serializeDiagramSvg } from './svgExport';
 
 type ThemeName = 'Paper' | 'Classic' | 'Forest' | 'Dark';
-type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
-type CpuReply = { id: number; type: 'progress' | 'partial' | 'result' | 'error'; message?: string; reply?: string; text?: string };
 
 type Draft = {
   source: string;
@@ -118,21 +114,6 @@ export default function App() {
   const [renderError, setRenderError] = useState('');
   const [status, setStatus] = useState('Ready');
   const [showCode, setShowCode] = useState(true);
-  const [description, setDescription] = useState('');
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiProgress, setAiProgress] = useState('');
-  const [aiError, setAiError] = useState('');
-  const [aiBackend, setAiBackend] = useState<'hosted' | 'local'>(HOSTED_AI_URL ? 'hosted' : 'local');
-  const [aiPreview, setAiPreview] = useState('');
-  const [aiElapsed, setAiElapsed] = useState(0);
-  const engineRef = useRef<MLCEngineInterface | null>(null);
-  const workerRef = useRef<Worker | null>(null);
-  const cpuWorkerRef = useRef<Worker | null>(null);
-  const hostedAbortRef = useRef<AbortController | null>(null);
-  const generationRef = useRef(0);
-  const generationActiveRef = useRef(false);
-  const aiPreviewRef = useRef<HTMLTextAreaElement | null>(null);
-
   const renderSource = useMemo(
     () => withAccessibility(plainMermaidLabels(draft.source), draft.title, draft.description),
     [draft.source, draft.title, draft.description],
@@ -146,24 +127,6 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
   }, [draft]);
-
-  useEffect(() => {
-    if (!aiBusy) return;
-    const started = Date.now();
-    const timer = window.setInterval(() => setAiElapsed(Math.floor((Date.now() - started) / 1000)), 5000);
-    return () => window.clearInterval(timer);
-  }, [aiBusy]);
-
-  useEffect(() => {
-    if (aiPreviewRef.current) aiPreviewRef.current.scrollTop = aiPreviewRef.current.scrollHeight;
-  }, [aiPreview]);
-
-  useEffect(() => () => {
-    generationRef.current += 1;
-    workerRef.current?.terminate();
-    cpuWorkerRef.current?.terminate();
-    hostedAbortRef.current?.abort();
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -208,185 +171,6 @@ export default function App() {
       description: template.purpose,
     }));
     setStatus(`${template.name} loaded`);
-  }
-
-  function cancelGeneration() {
-    generationRef.current += 1;
-    generationActiveRef.current = false;
-    workerRef.current?.terminate();
-    workerRef.current = null;
-    engineRef.current = null;
-    cpuWorkerRef.current?.terminate();
-    cpuWorkerRef.current = null;
-    hostedAbortRef.current?.abort();
-    hostedAbortRef.current = null;
-    setAiBusy(false);
-    setAiProgress('Generation cancelled. Your current diagram is unchanged.');
-  }
-
-  async function usePartialDiagram() {
-    const generation = generationRef.current;
-    try {
-      const candidate = extractMermaid(aiPreview);
-      if (candidate.length < 40 || !candidate.includes('\n')) throw new Error('Diagram is incomplete');
-      await mermaid.parse(candidate);
-      if (generation !== generationRef.current || !generationActiveRef.current) return;
-      cancelGeneration();
-      setDraft((current) => ({ ...current, source: candidate }));
-      setShowCode(true);
-      setAiPreview('');
-      setAiError('');
-      setAiProgress('Partial diagram loaded. Check the editor and preview for missing steps.');
-    } catch {
-      if (generation === generationRef.current && generationActiveRef.current) {
-        setAiError('The generated text is not yet a complete Mermaid diagram. Let it continue or try again.');
-      }
-    }
-  }
-
-  function generateOnCpu(messages: ChatMessage[], generation: number) {
-    cpuWorkerRef.current ??= new Worker(new URL('./diagramAi.cpu.worker.ts', import.meta.url), { type: 'module' });
-    const worker = cpuWorkerRef.current;
-    return new Promise<string>((resolve, reject) => {
-      const cleanup = () => {
-        worker.removeEventListener('message', onMessage);
-        worker.removeEventListener('error', onError);
-      };
-      const onMessage = (event: MessageEvent<CpuReply>) => {
-        const data = event.data;
-        if (data.id !== generation) return;
-        if (data.type === 'progress') {
-          if (generation === generationRef.current) setAiProgress(data.message ?? 'Loading CPU model…');
-          return;
-        }
-        if (data.type === 'partial') {
-          if (generation === generationRef.current) setAiPreview(data.text?.slice(0, 10000) ?? '');
-          return;
-        }
-        cleanup();
-        if (data.type === 'error') reject(new Error(data.message ?? 'CPU model failed to run.'));
-        else resolve(data.reply ?? '');
-      };
-      const onError = () => {
-        cleanup();
-        reject(new Error('The CPU model could not start. Check available memory and network access.'));
-      };
-      worker.addEventListener('message', onMessage);
-      worker.addEventListener('error', onError);
-      worker.postMessage({ id: generation, messages });
-    });
-  }
-
-  async function generateDiagram() {
-    const request = description.trim();
-    if (!request || aiBusy) return;
-    const generation = ++generationRef.current;
-    generationActiveRef.current = true;
-    setAiBusy(true);
-    setAiError('');
-    setAiPreview('');
-    setAiElapsed(0);
-    setAiProgress(aiBackend === 'hosted' ? 'Contacting Cloudflare Workers AI…' : 'Checking on-device AI support…');
-
-    try {
-      const gpu = (navigator as Navigator & { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu;
-      let useGpu = aiBackend === 'local' && Boolean(await gpu?.requestAdapter().catch(() => null));
-      if (generation !== generationRef.current) return;
-
-      const messages: ChatMessage[] = [
-        { role: 'system', content: DIAGRAM_SYSTEM_PROMPT },
-        { role: 'user', content: `Create a Mermaid diagram for: ${request}` },
-      ];
-      let repair: { previous: string; validationError: string } | undefined;
-      if (aiBackend === 'hosted') hostedAbortRef.current = new AbortController();
-      const generateReply = async () => {
-        if (aiBackend === 'hosted') {
-          setAiProgress(repair ? 'Asking Cloudflare AI to repair the diagram…' : 'Generating Mermaid with Cloudflare AI…');
-          return generateHostedDiagram(HOSTED_AI_URL, request, repair, hostedAbortRef.current!.signal);
-        }
-        if (useGpu) {
-          try {
-            if (!engineRef.current) {
-              setAiProgress('Loading the GPU model. The first download may take a few minutes…');
-              const { CreateWebWorkerMLCEngine } = await import('@mlc-ai/web-llm');
-              if (generation !== generationRef.current) return '';
-              const worker = new Worker(new URL('./diagramAi.worker.ts', import.meta.url), { type: 'module' });
-              workerRef.current = worker;
-              const engine = await CreateWebWorkerMLCEngine(worker, LOCAL_MODEL, {
-                initProgressCallback: (progress) => {
-                  if (generation === generationRef.current) setAiProgress(progress.text);
-                },
-              });
-              if (generation !== generationRef.current) {
-                worker.terminate();
-                return '';
-              }
-              engineRef.current = engine;
-            }
-            if (generation !== generationRef.current) return '';
-            setAiProgress('Writing Mermaid text with the GPU model…');
-            const response = await engineRef.current.chat.completions.create({
-              messages, temperature: 0.2, max_tokens: 700, stream: false,
-            });
-            return response.choices[0]?.message.content ?? '';
-          } catch {
-            if (generation !== generationRef.current) return '';
-            workerRef.current?.terminate();
-            workerRef.current = null;
-            engineRef.current = null;
-            useGpu = false;
-            setAiProgress('GPU model unavailable. Switching to the CPU model…');
-          }
-        }
-        return generateOnCpu([{ role: 'system', content: CPU_DIAGRAM_SYSTEM_PROMPT }, ...messages.slice(1)], generation);
-      };
-
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        if (attempt) {
-          setAiPreview('');
-          setAiProgress(aiBackend === 'hosted' ? 'Repairing Mermaid syntax with Cloudflare AI…' : 'Repairing Mermaid syntax on this device…');
-        }
-        const reply = await generateReply();
-        if (generation !== generationRef.current) return;
-
-        try {
-          const candidate = extractMermaid(reply);
-          await mermaid.parse(candidate);
-          if (generation !== generationRef.current) return;
-          setDraft((current) => ({ ...current, source: candidate }));
-          setShowCode(true);
-          setAiPreview('');
-          setAiProgress('Diagram generated. Check the text and preview before sharing.');
-          setStatus(aiBackend === 'hosted' ? 'Mermaid diagram generated with Cloudflare AI' : 'Mermaid diagram generated locally');
-          return;
-        } catch (error) {
-          if (attempt) throw error;
-          const message = error instanceof Error ? error.message : 'Mermaid syntax is invalid';
-          repair = { previous: reply.slice(0, 2500), validationError: message.slice(0, 400) };
-          messages.push(
-            { role: 'assistant', content: reply },
-            { role: 'user', content: `Your diagram failed validation: ${message.slice(0, 400)}. Return only a corrected Mermaid diagram with the same meaning.` },
-          );
-        }
-      }
-    } catch (error) {
-      if (generation === generationRef.current) {
-        if (!engineRef.current) {
-          workerRef.current?.terminate();
-          workerRef.current = null;
-        }
-        cpuWorkerRef.current?.terminate();
-        cpuWorkerRef.current = null;
-        setAiError(error instanceof Error ? error.message : 'AI could not generate this diagram.');
-        setAiProgress('Your existing diagram is unchanged.');
-      }
-    } finally {
-      if (generation === generationRef.current) hostedAbortRef.current = null;
-      if (generation === generationRef.current) {
-        generationActiveRef.current = false;
-        setAiBusy(false);
-      }
-    }
   }
 
   async function copyMermaid() {
@@ -498,73 +282,22 @@ export default function App() {
       <main>
         <section className="hero">
           <p className="eyebrow">Free visual explanation tool</p>
-          <h1>Explain an idea. <span>Not diagram syntax.</span></h1>
+          <h1>Make your ideas clear. <span>With Mermaid.</span></h1>
           <p className="hero-copy">
-            Start with a familiar example, change the words, and export a clear diagram for a lesson,
-            article, public-service guide, presentation, or technical document.
+            Choose a template or paste Mermaid text, then edit, preview, and export your diagram
+            for a lesson, article, public-service guide, or technical document.
           </p>
+          <a className="editor-link" href="#studio-heading">Write Mermaid text →</a>
           <div className="trust-row" aria-label="Product principles">
             <span>No account</span><span>Local drafts</span><span>Local autosave</span><span>Accessible SVG</span>
-          </div>
-        </section>
-
-        <section className="ai-section" aria-labelledby="ai-heading">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">1 · Describe what you need</p>
-              <h2 id="ai-heading">Turn your idea into a diagram</h2>
-            </div>
-            <span className="ai-badge">Free · {HOSTED_AI_URL ? 'Cloudflare or local' : 'On your device'}</span>
-          </div>
-          <div className="ai-panel">
-            <label htmlFor="diagram-description">What should the diagram explain?</label>
-            <textarea
-              id="diagram-description"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Example: A resident applies for a library card. Staff check eligibility. If approved, they issue the card; otherwise, they explain what is missing."
-              maxLength={3000}
-            />
-            {HOSTED_AI_URL && (
-              <label className="ai-provider" htmlFor="ai-provider">
-                Generate with
-                <select id="ai-provider" value={aiBackend} onChange={(event) => setAiBackend(event.target.value as 'hosted' | 'local')} disabled={aiBusy}>
-                  <option value="hosted">Cloudflare AI · faster</option>
-                  <option value="local">On my device · private, slower</option>
-                </select>
-              </label>
-            )}
-            <div className="ai-controls">
-              <button className="primary" type="button" onClick={generateDiagram} disabled={aiBusy || !description.trim()}>
-                {aiBusy ? 'Generating…' : 'Generate Mermaid diagram'}
-              </button>
-              {aiBusy && <button type="button" onClick={cancelGeneration}>Cancel</button>}
-              <span role="status" aria-live="polite">{aiProgress}</span>
-              {aiBusy && aiElapsed >= 5 && <span>Elapsed: {Math.floor(aiElapsed / 60)}m {String(aiElapsed % 60).padStart(2, '0')}s</span>}
-            </div>
-            {aiBusy && !aiPreview && aiElapsed >= 30 && <p className="ai-note">Still working on your device. Generation may take several minutes; you can cancel at any time.</p>}
-            {aiPreview && (
-              <div className="ai-preview">
-                <label htmlFor="ai-generated-text">{aiBusy ? 'Mermaid text being generated (not yet validated)' : 'Incomplete Mermaid text from the cancelled or failed run'}</label>
-                <textarea id="ai-generated-text" ref={aiPreviewRef} value={aiPreview} readOnly rows={8} />
-                {aiBusy && <p className="ai-note">The diagram editor and preview will update after the generated text passes Mermaid validation.</p>}
-                {aiBusy && <button className="ai-use-partial" type="button" onClick={usePartialDiagram}>Try using this partial diagram</button>}
-              </div>
-            )}
-            {aiError && <p className="ai-error" role="alert">{aiError}</p>}
-            <p className="ai-note">
-              {aiBackend === 'hosted'
-                ? 'Your description is sent to Cloudflare to generate Mermaid text. No login is required. The free daily allowance is shared by all visitors; diagrams and drafts stay in your browser.'
-                : `Your description is processed on your device. The first model download is large (about 786 MB on CPU), and CPU generation may take several minutes.${HOSTED_AI_URL ? '' : ' Cloudflare AI is not configured on this site yet.'}`}
-            </p>
           </div>
         </section>
 
         <section className="template-section" aria-labelledby="templates-heading">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">2 · Or choose what feels closest</p>
-              <h2 id="templates-heading">Start from a purpose</h2>
+              <p className="eyebrow">1 · Choose a starting point</p>
+              <h2 id="templates-heading">Start from a template</h2>
             </div>
             <div className="audience-tabs" aria-label="Filter templates by audience">
               {audiences.map((item) => (
@@ -595,8 +328,8 @@ export default function App() {
         <section className="studio" aria-labelledby="studio-heading">
           <div className="section-heading studio-heading">
             <div>
-              <p className="eyebrow">3 · Change the words</p>
-              <h2 id="studio-heading">Diagram studio</h2>
+              <p className="eyebrow">2 · Write or paste Mermaid text</p>
+              <h2 id="studio-heading">Mermaid editor and live preview</h2>
             </div>
             <div className="studio-actions">
               <button type="button" onClick={() => setShowCode((value) => !value)}>{showCode ? 'Hide text' : 'Edit text'}</button>
@@ -658,7 +391,7 @@ export default function App() {
 
         <section className="accessibility-section" aria-labelledby="accessibility-heading">
           <div>
-            <p className="eyebrow">4 · Make the meaning portable</p>
+              <p className="eyebrow">3 · Make the meaning portable</p>
             <h2 id="accessibility-heading">Describe the diagram for everyone</h2>
             <p>
               The title and description are embedded into the rendered SVG using Mermaid accessibility metadata,
@@ -687,7 +420,7 @@ export default function App() {
 
         <section className="export-section" aria-labelledby="export-heading">
           <div>
-            <p className="eyebrow">5 · Publish it where people already work</p>
+            <p className="eyebrow">4 · Publish it where people already work</p>
             <h2 id="export-heading">Export and reuse</h2>
             <p>SVG stays sharp in documents and websites. PNG is convenient for slides and social posts. Print can be saved as PDF.</p>
           </div>
@@ -699,7 +432,7 @@ export default function App() {
         </section>
 
         <section className="principles">
-          <article><span>01</span><h3>Plain language first</h3><p>People choose a purpose and example before seeing Mermaid syntax.</p></article>
+          <article><span>01</span><h3>Start from a template</h3><p>Choose a useful example or paste Mermaid text directly into the editor.</p></article>
           <article><span>02</span><h3>Public by design</h3><p>No sign-in or backend is required for the core editor; drafts remain in the browser.</p></article>
           <article><span>03</span><h3>Open format</h3><p>The source remains Mermaid text, so a diagram is portable and can live beside documentation.</p></article>
           <article><span>04</span><h3>Accessible output</h3><p>Every diagram can carry an accessible title and description, not just visual labels.</p></article>
