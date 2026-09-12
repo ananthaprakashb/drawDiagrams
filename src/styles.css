@@ -115,10 +115,23 @@ h1 span { color: #587269; font-weight: 470; }
   font-weight: 650;
 }
 
-.template-section, .studio, .accessibility-section, .export-section, .principles {
+.ai-section, .template-section, .studio, .accessibility-section, .export-section, .principles {
   border-top: 1px solid rgba(31, 41, 37, 0.16);
   padding: 48px 0 64px;
 }
+
+.ai-badge { padding: 9px 13px; border-radius: 999px; background: #e3efe8; color: #225442; font-weight: 750; font-size: 13px; }
+.ai-panel { display: grid; gap: 14px; padding: 24px; border: 1px solid #c7d5cd; border-radius: 16px; background: #fff; }
+.ai-panel label { font-weight: 750; }
+.ai-panel textarea { min-height: 124px; padding: 14px; resize: vertical; border: 1px solid #b8c8bf; border-radius: 10px; background: #fbfcfa; color: #26372e; line-height: 1.55; }
+.ai-panel textarea:focus { border-color: #2f6c58; outline: 3px solid rgba(47, 108, 88, 0.12); }
+.ai-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.ai-controls button { min-height: 44px; padding: 10px 17px; border: 1px solid #b8c5bf; border-radius: 9px; background: #fff; color: #283630; }
+.ai-controls .primary { border-color: #173f35; background: #173f35; color: #fff; font-weight: 750; }
+.ai-controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+.ai-controls span { color: #426355; font-size: 13px; }
+.ai-note { color: #526960; font-size: 13px; line-height: 1.55; }
+.ai-error { color: #8a3025; font-size: 13px; line-height: 1.5; }
 
 .section-heading {
   display: flex;
@@ -343,7 +356,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, select:focus-visib
 }
 
 @media print {
-  .site-header, .hero, .template-section, .studio-heading, .editor-panel, .accessibility-section, .export-section, .principles, footer { display: none !important; }
+  .site-header, .hero, .ai-section, .template-section, .studio-heading, .editor-panel, .accessibility-section, .export-section, .principles, footer { display: none !important; }
   main { width: 100%; }
   .studio { border: 0; padding: 0; }
   .workspace { display: block; border: 0; box-shadow: none; }

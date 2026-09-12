@@ -10,6 +10,7 @@
     "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.85",
     "mermaid": "11.17.2",
     "react": "19.2.8",
     "react-dom": "19.2.8"
