@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import mermaid from 'mermaid';
 import { audiences, templates, type Audience, type DiagramTemplate } from './templates';
+import { serializeDiagramSvg } from './svgExport';
 
 type ThemeName = 'Paper' | 'Classic' | 'Forest' | 'Dark';
 
@@ -99,6 +100,12 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function exportedDiagramSvg() {
+  const renderedSvg = document.querySelector<SVGSVGElement>('.diagram-output svg');
+  if (!renderedSvg) throw new Error('No rendered diagram is available');
+  return serializeDiagramSvg(renderedSvg);
+}
+
 export default function App() {
   const [draft, setDraft] = useState<Draft>(initialDraft);
   const [audience, setAudience] = useState<Audience>('Everyone');
@@ -187,21 +194,26 @@ export default function App() {
 
   function exportSvg() {
     if (!svg) return;
-    downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), filenameFrom(draft.title, 'svg'));
-    setStatus('SVG downloaded');
+    try {
+      const { serialized } = exportedDiagramSvg();
+      downloadBlob(new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' }), filenameFrom(draft.title, 'svg'));
+      setStatus('SVG downloaded');
+    } catch {
+      setStatus('Could not export SVG');
+    }
   }
 
   async function exportPng() {
     if (!svg) return;
 
     try {
-      const documentSvg = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
+      const { serialized, root: documentSvg } = exportedDiagramSvg();
       const viewBox = documentSvg.getAttribute('viewBox')?.split(/\s+/).map(Number);
       const width = Math.max(320, viewBox?.[2] || Number(documentSvg.getAttribute('width')) || 1200);
       const height = Math.max(240, viewBox?.[3] || Number(documentSvg.getAttribute('height')) || 800);
       const scale = Math.min(2, 4096 / Math.max(width, height));
 
-      const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+      const blob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const image = new Image();
 
@@ -404,9 +416,9 @@ export default function App() {
             <p>SVG stays sharp in documents and websites. PNG is convenient for slides and social posts. Print can be saved as PDF.</p>
           </div>
           <div className="export-actions">
-            <button className="primary" type="button" onClick={exportSvg} disabled={!svg}>Download SVG</button>
-            <button type="button" onClick={exportPng} disabled={!svg}>Download PNG</button>
-            <button type="button" onClick={printDiagram} disabled={!svg}>Print / Save PDF</button>
+            <button className="primary" type="button" onClick={exportSvg} disabled={!svg || !!renderError}>Download SVG</button>
+            <button type="button" onClick={exportPng} disabled={!svg || !!renderError}>Download PNG</button>
+            <button type="button" onClick={printDiagram} disabled={!svg || !!renderError}>Print / Save PDF</button>
           </div>
         </section>
 
