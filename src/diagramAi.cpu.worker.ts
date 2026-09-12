@@ -1,4 +1,4 @@
-import { env, pipeline } from '@huggingface/transformers';
+import { env, pipeline, TextStreamer } from '@huggingface/transformers';
 import type { TextGenerationPipelineType } from '@huggingface/transformers';
 
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
@@ -28,8 +28,23 @@ self.onmessage = async (event: MessageEvent<CpuRequest>) => {
       },
     });
     const generator = await generatorPromise;
-    self.postMessage({ id, type: 'progress', message: 'Writing Mermaid text with the CPU model…' });
-    const result = await generator(messages, { max_new_tokens: 450, do_sample: false });
+    self.postMessage({ id, type: 'progress', message: 'Preparing the prompt on the CPU…' });
+    let partial = '';
+    let tokens = 0;
+    const streamer = new TextStreamer(generator.tokenizer, {
+      skip_prompt: true,
+      callback_function: (chunk) => {
+        partial += chunk;
+        self.postMessage({ id, type: 'partial', text: partial, tokens });
+      },
+      token_callback_function: () => {
+        tokens += 1;
+        if (tokens === 1 || tokens % 10 === 0) {
+          self.postMessage({ id, type: 'progress', message: `Writing Mermaid text with the CPU model (${tokens} tokens)…` });
+        }
+      },
+    });
+    const result = await generator(messages, { max_new_tokens: 260, do_sample: false, streamer });
     const first = result[0];
     const generated = (Array.isArray(first) ? first[0] : first)?.generated_text;
     const reply = typeof generated === 'string' ? generated : generated?.at(-1)?.content ?? '';

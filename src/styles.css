@@ -132,6 +132,10 @@ h1 span { color: #587269; font-weight: 470; }
 .ai-controls span { color: #426355; font-size: 13px; }
 .ai-note { color: #526960; font-size: 13px; line-height: 1.55; }
 .ai-error { color: #8a3025; font-size: 13px; line-height: 1.5; }
+.ai-preview { display: grid; gap: 9px; }
+.ai-preview textarea { font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.ai-preview .ai-note { margin: 0; }
+.ai-use-partial { justify-self: start; padding: 9px 13px; border: 1px solid #aabdb2; border-radius: 8px; background: #eef6f0; color: #214d3c; font-weight: 650; cursor: pointer; }
 
 .section-heading {
   display: flex;

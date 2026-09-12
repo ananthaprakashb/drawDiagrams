@@ -1,5 +1,13 @@
 export const LOCAL_MODEL = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
 
+// Keep prompt prefill short on the single-threaded CPU fallback.
+export const CPU_DIAGRAM_SYSTEM_PROMPT = `Return only one valid Mermaid diagram. Choose flowchart TD, sequenceDiagram, timeline, or mindmap. Use at most 10 nodes, simple IDs, short labels, and no Markdown, HTML, links, clicks, or directives. Preserve the user's meaning.
+Example:
+flowchart TD
+  A["Apply"] --> B{"Eligible?"}
+  B -- "Yes" --> C["Approve"]
+  B -- "No" --> D["Explain"]`;
+
 export const DIAGRAM_SYSTEM_PROMPT = `Convert the user's explanation into ONE concise Mermaid diagram.
 Output Mermaid syntax only. No Markdown, commentary, HTML, click commands, links, or init directives.
 Choose sequenceDiagram for interactions between people or systems; timeline for dated or ordered events; mindmap for concepts and subtopics; otherwise use flowchart TD.
