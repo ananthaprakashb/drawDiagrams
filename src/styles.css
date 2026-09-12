@@ -125,6 +125,9 @@ h1 span { color: #587269; font-weight: 470; }
 .ai-panel label { font-weight: 750; }
 .ai-panel textarea { min-height: 124px; padding: 14px; resize: vertical; border: 1px solid #b8c8bf; border-radius: 10px; background: #fbfcfa; color: #26372e; line-height: 1.55; }
 .ai-panel textarea:focus { border-color: #2f6c58; outline: 3px solid rgba(47, 108, 88, 0.12); }
+.ai-provider { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 14px; }
+.ai-provider select { padding: 9px 12px; border: 1px solid #b8c8bf; border-radius: 8px; background: #fbfcfa; color: #26372e; font: inherit; }
+.ai-provider select:focus { border-color: #2f6c58; outline: 3px solid rgba(47, 108, 88, 0.12); }
 .ai-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .ai-controls button { min-height: 44px; padding: 10px 17px; border: 1px solid #b8c5bf; border-radius: 9px; background: #fff; color: #283630; }
 .ai-controls .primary { border-color: #173f35; background: #173f35; color: #fff; font-weight: 750; }

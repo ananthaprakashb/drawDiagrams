@@ -3,6 +3,7 @@ import mermaid from 'mermaid';
 import type { MLCEngineInterface } from '@mlc-ai/web-llm';
 import { audiences, templates, type Audience, type DiagramTemplate } from './templates';
 import { CPU_DIAGRAM_SYSTEM_PROMPT, DIAGRAM_SYSTEM_PROMPT, extractMermaid, LOCAL_MODEL } from './diagramAi';
+import { generateHostedDiagram, HOSTED_AI_URL } from './hostedAi';
 import { serializeDiagramSvg } from './svgExport';
 
 type ThemeName = 'Paper' | 'Classic' | 'Forest' | 'Dark';
@@ -121,11 +122,13 @@ export default function App() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiProgress, setAiProgress] = useState('');
   const [aiError, setAiError] = useState('');
+  const [aiBackend, setAiBackend] = useState<'hosted' | 'local'>(HOSTED_AI_URL ? 'hosted' : 'local');
   const [aiPreview, setAiPreview] = useState('');
   const [aiElapsed, setAiElapsed] = useState(0);
   const engineRef = useRef<MLCEngineInterface | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const cpuWorkerRef = useRef<Worker | null>(null);
+  const hostedAbortRef = useRef<AbortController | null>(null);
   const generationRef = useRef(0);
   const generationActiveRef = useRef(false);
   const aiPreviewRef = useRef<HTMLTextAreaElement | null>(null);
@@ -159,6 +162,7 @@ export default function App() {
     generationRef.current += 1;
     workerRef.current?.terminate();
     cpuWorkerRef.current?.terminate();
+    hostedAbortRef.current?.abort();
   }, []);
 
   useEffect(() => {
@@ -214,8 +218,10 @@ export default function App() {
     engineRef.current = null;
     cpuWorkerRef.current?.terminate();
     cpuWorkerRef.current = null;
+    hostedAbortRef.current?.abort();
+    hostedAbortRef.current = null;
     setAiBusy(false);
-    setAiProgress('Generation cancelled. The downloaded model can be reused from your browser cache.');
+    setAiProgress('Generation cancelled. Your current diagram is unchanged.');
   }
 
   async function usePartialDiagram() {
@@ -280,18 +286,24 @@ export default function App() {
     setAiError('');
     setAiPreview('');
     setAiElapsed(0);
-    setAiProgress('Checking on-device AI support…');
+    setAiProgress(aiBackend === 'hosted' ? 'Contacting Cloudflare Workers AI…' : 'Checking on-device AI support…');
 
     try {
       const gpu = (navigator as Navigator & { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu;
-      let useGpu = Boolean(await gpu?.requestAdapter().catch(() => null));
+      let useGpu = aiBackend === 'local' && Boolean(await gpu?.requestAdapter().catch(() => null));
       if (generation !== generationRef.current) return;
 
       const messages: ChatMessage[] = [
         { role: 'system', content: DIAGRAM_SYSTEM_PROMPT },
         { role: 'user', content: `Create a Mermaid diagram for: ${request}` },
       ];
+      let repair: { previous: string; validationError: string } | undefined;
+      if (aiBackend === 'hosted') hostedAbortRef.current = new AbortController();
       const generateReply = async () => {
+        if (aiBackend === 'hosted') {
+          setAiProgress(repair ? 'Asking Cloudflare AI to repair the diagram…' : 'Generating Mermaid with Cloudflare AI…');
+          return generateHostedDiagram(HOSTED_AI_URL, request, repair, hostedAbortRef.current!.signal);
+        }
         if (useGpu) {
           try {
             if (!engineRef.current) {
@@ -332,7 +344,7 @@ export default function App() {
       for (let attempt = 0; attempt < 2; attempt += 1) {
         if (attempt) {
           setAiPreview('');
-          setAiProgress('Repairing Mermaid syntax on this device…');
+          setAiProgress(aiBackend === 'hosted' ? 'Repairing Mermaid syntax with Cloudflare AI…' : 'Repairing Mermaid syntax on this device…');
         }
         const reply = await generateReply();
         if (generation !== generationRef.current) return;
@@ -345,11 +357,12 @@ export default function App() {
           setShowCode(true);
           setAiPreview('');
           setAiProgress('Diagram generated. Check the text and preview before sharing.');
-          setStatus('Mermaid diagram generated locally');
+          setStatus(aiBackend === 'hosted' ? 'Mermaid diagram generated with Cloudflare AI' : 'Mermaid diagram generated locally');
           return;
         } catch (error) {
           if (attempt) throw error;
           const message = error instanceof Error ? error.message : 'Mermaid syntax is invalid';
+          repair = { previous: reply.slice(0, 2500), validationError: message.slice(0, 400) };
           messages.push(
             { role: 'assistant', content: reply },
             { role: 'user', content: `Your diagram failed validation: ${message.slice(0, 400)}. Return only a corrected Mermaid diagram with the same meaning.` },
@@ -364,10 +377,11 @@ export default function App() {
         }
         cpuWorkerRef.current?.terminate();
         cpuWorkerRef.current = null;
-        setAiError(error instanceof Error ? error.message : 'Local AI could not generate this diagram.');
+        setAiError(error instanceof Error ? error.message : 'AI could not generate this diagram.');
         setAiProgress('Your existing diagram is unchanged.');
       }
     } finally {
+      if (generation === generationRef.current) hostedAbortRef.current = null;
       if (generation === generationRef.current) {
         generationActiveRef.current = false;
         setAiBusy(false);
@@ -490,7 +504,7 @@ export default function App() {
             article, public-service guide, presentation, or technical document.
           </p>
           <div className="trust-row" aria-label="Product principles">
-            <span>No account</span><span>No upload</span><span>Local autosave</span><span>Accessible SVG</span>
+            <span>No account</span><span>Local drafts</span><span>Local autosave</span><span>Accessible SVG</span>
           </div>
         </section>
 
@@ -500,7 +514,7 @@ export default function App() {
               <p className="eyebrow">1 · Describe what you need</p>
               <h2 id="ai-heading">Turn your idea into a diagram</h2>
             </div>
-            <span className="ai-badge">Free · On your device</span>
+            <span className="ai-badge">Free · {HOSTED_AI_URL ? 'Cloudflare or local' : 'On your device'}</span>
           </div>
           <div className="ai-panel">
             <label htmlFor="diagram-description">What should the diagram explain?</label>
@@ -511,6 +525,15 @@ export default function App() {
               placeholder="Example: A resident applies for a library card. Staff check eligibility. If approved, they issue the card; otherwise, they explain what is missing."
               maxLength={3000}
             />
+            {HOSTED_AI_URL && (
+              <label className="ai-provider" htmlFor="ai-provider">
+                Generate with
+                <select id="ai-provider" value={aiBackend} onChange={(event) => setAiBackend(event.target.value as 'hosted' | 'local')} disabled={aiBusy}>
+                  <option value="hosted">Cloudflare AI · faster</option>
+                  <option value="local">On my device · private, slower</option>
+                </select>
+              </label>
+            )}
             <div className="ai-controls">
               <button className="primary" type="button" onClick={generateDiagram} disabled={aiBusy || !description.trim()}>
                 {aiBusy ? 'Generating…' : 'Generate Mermaid diagram'}
@@ -530,7 +553,9 @@ export default function App() {
             )}
             {aiError && <p className="ai-error" role="alert">{aiError}</p>}
             <p className="ai-note">
-              No account or API key. The model runs in your browser on GPU or CPU. The first download is large (about 786 MB on CPU) and CPU generation may take several minutes. Your description is processed locally.
+              {aiBackend === 'hosted'
+                ? 'Your description is sent to Cloudflare to generate Mermaid text. No login is required. The free daily allowance is shared by all visitors; diagrams and drafts stay in your browser.'
+                : `Your description is processed on your device. The first model download is large (about 786 MB on CPU), and CPU generation may take several minutes.${HOSTED_AI_URL ? '' : ' Cloudflare AI is not configured on this site yet.'}`}
             </p>
           </div>
         </section>

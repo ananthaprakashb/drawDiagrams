@@ -31,6 +31,8 @@ jobs:
         run: npm install
 
       - name: Build
+        env:
+          VITE_DIAGRAM_AI_URL: ${{ vars.DRAWDIAGRAMS_AI_URL }}
         run: npm run build
 
       - name: Configure Pages
