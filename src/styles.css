@@ -210,6 +210,11 @@ h2 {
 }
 .muted { color: #7b8984; font-weight: 500; }
 .panel-title select { padding: 6px 30px 6px 8px; border: 1px solid #c9d1cd; border-radius: 7px; background: #fff; color: inherit; }
+.preview-title { height: auto; min-height: 52px; flex-wrap: wrap; padding-block: 7px; }
+.preview-controls, .zoom-controls { display: flex; align-items: center; gap: 6px; }
+.preview-controls { flex-wrap: wrap; }
+.zoom-controls button { min-width: 35px; min-height: 34px; padding: 5px 8px; border: 1px solid #c9d1cd; border-radius: 7px; background: #fff; color: #24322d; }
+.zoom-controls button[aria-pressed="true"] { background: #173f35; border-color: #173f35; color: #fff; }
 
 .editor-panel > textarea {
   width: 100%;
@@ -235,19 +240,19 @@ h2 {
 .syntax-help p { margin: 10px 0 0; color: #5d6d67; font-size: 13px; line-height: 1.45; }
 
 .diagram-stage {
-  min-height: 598px;
+  height: min(75vh, 850px);
+  min-height: 460px;
   flex: 1;
-  display: grid;
-  place-items: center;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 30px;
   background-color: #fcfcfa;
   background-image: radial-gradient(#d8dfdb 0.75px, transparent 0.75px);
   background-size: 18px 18px;
 }
 
-.diagram-output { width: 100%; display: grid; place-items: center; }
-.diagram-output svg { max-width: 100%; height: auto; }
+.diagram-output { margin-inline: auto; }
+.diagram-output svg { display: block; width: 100%; max-width: none !important; height: auto; }
 .error-card { max-width: 600px; padding: 22px; border: 1px solid #d2a7a0; border-radius: 12px; background: #fff6f4; }
 .error-card strong { color: #7b2f24; }
 .error-card p { margin: 8px 0 0; color: #664b46; line-height: 1.45; }
@@ -351,5 +356,6 @@ button:focus-visible, a:focus-visible, summary:focus-visible, select:focus-visib
   .studio { border: 0; padding: 0; }
   .workspace { display: block; border: 0; box-shadow: none; }
   .preview-panel .panel-title { display: none; }
-  .diagram-stage { min-height: 0; padding: 0; background: white; overflow: visible; }
+  .diagram-stage { height: auto; min-height: 0; padding: 0; background: white; overflow: visible; }
+  .diagram-output { width: 100% !important; max-width: none !important; }
 }

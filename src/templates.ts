@@ -1,3 +1,5 @@
+import booknookExample from './examples/booknook.mmd?raw';
+
 export type Audience = 'Everyone' | 'Teachers' | 'Authors' | 'Public service' | 'Technical';
 
 export type DiagramTemplate = {
@@ -153,6 +155,14 @@ export const templates: DiagramTemplate[] = [
     section Publish
       Review :review, after draft, 3d
       Publish :milestone, publish, after review, 0d`,
+  },
+  {
+    id: 'booknook-use-cases',
+    name: 'Bookstore use-case map',
+    audience: 'Technical',
+    purpose: 'Explore actors, a system boundary, and many related use cases.',
+    type: 'Advanced flowchart',
+    source: booknookExample,
   },
 ];
 
