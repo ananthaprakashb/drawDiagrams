@@ -51,12 +51,8 @@ a { color: inherit; }
 .brand-mark {
   width: 32px;
   height: 32px;
-  display: grid;
-  place-items: center;
+  display: block;
   border-radius: 9px;
-  background: #173f35;
-  color: #fff;
-  font-size: 19px;
 }
 
 .header-actions { display: flex; align-items: center; gap: 18px; font-size: 13px; }
