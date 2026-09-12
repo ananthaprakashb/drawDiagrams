@@ -47,6 +47,8 @@ The site is static and browser-only. Editing, rendering, and draft autosave happ
 
 Natural-language generation is deferred for a later release. This release does not download an AI model or contact a hosted AI service.
 
+An independent, **undeployed** [ChatGPT MCP service foundation](service/README.md) can turn Mermaid text written in ChatGPT into a link to this editor. It includes OAuth account checks and three free links per user per UTC week; it does not change the browser editor or implement payments. Public listing and billing require additional account, policy, and deployment work.
+
 ## Accessibility
 
 DrawDiagrams exposes fields for an accessible title and description. At render time they are inserted into the Mermaid definition using `accTitle` and `accDescr`, allowing Mermaid to place corresponding accessibility metadata in the generated SVG.

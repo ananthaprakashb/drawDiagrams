@@ -1,0 +1,17 @@
+{
+  "name": "drawdiagrams-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "drawdiagrams-usage",
+    "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+    "migrations_dir": "migrations"
+  }],
+  "vars": {
+    "MCP_PUBLIC_URL": "https://YOUR_WORKER_HOST/mcp",
+    "STUDIO_URL": "https://diagrams.engineeringstepstone.com/",
+    "OAUTH_ISSUER": "https://YOUR_OAUTH_ISSUER/",
+    "OAUTH_JWKS_URL": "https://YOUR_OAUTH_ISSUER/.well-known/jwks.json"
+  }
+}
