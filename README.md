@@ -47,7 +47,7 @@ The site is static and browser-only. Editing, rendering, and draft autosave happ
 
 Natural-language generation is deferred for a later release. This release does not download an AI model or contact a hosted AI service.
 
-An independent, **undeployed** [ChatGPT MCP service foundation](service/README.md) can turn Mermaid text written in ChatGPT into a link to this editor. It includes OAuth account checks and three free links per user per UTC week; it does not change the browser editor or implement payments. Public listing and billing require additional account, policy, and deployment work.
+An independent, **undeployed** [ChatGPT MCP service foundation](service/README.md) can turn Mermaid text written in ChatGPT into a link to this editor. It includes OAuth account checks and three free links per user per UTC week; it does not change the browser editor or implement payments. The proposed $10/month subscription and free-through-November promotion are documented in the [merchant setup guide](service/MERCHANT_SETUP.md). Public listing and billing require additional account, policy, and deployment work.
 
 ## Accessibility
 
