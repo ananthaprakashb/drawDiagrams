@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs"
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "worker:check": "wrangler deploy --config worker/wrangler.jsonc --dry-run",
+    "worker:dev": "wrangler dev --config worker/wrangler.jsonc",
+    "worker:deploy": "wrangler deploy --config worker/wrangler.jsonc"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
@@ -22,6 +25,7 @@
     "@vitejs/plugin-react": "6.1.1",
     "jsdom": "^30.0.1",
     "typescript": "7.0.2",
-    "vite": "8.2.2"
+    "vite": "8.2.2",
+    "wrangler": "^4.131.1"
   }
 }

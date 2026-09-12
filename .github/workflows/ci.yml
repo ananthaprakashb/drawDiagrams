@@ -23,3 +23,5 @@ jobs:
         run: npm test
       - name: Typecheck and build
         run: npm run build
+      - name: Check Cloudflare Worker bundle
+        run: npm run worker:check
