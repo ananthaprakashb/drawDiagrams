@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 import type { MLCEngineInterface } from '@mlc-ai/web-llm';
 import { audiences, templates, type Audience, type DiagramTemplate } from './templates';
-import { CPU_DIAGRAM_SYSTEM_PROMPT, DIAGRAM_SYSTEM_PROMPT, extractMermaid, LOCAL_MODEL } from './diagramAi';
+import { CPU_DIAGRAM_SYSTEM_PROMPT, DIAGRAM_SYSTEM_PROMPT, extractMermaid, LOCAL_MODEL, plainMermaidLabels } from './diagramAi';
 import { generateHostedDiagram, HOSTED_AI_URL } from './hostedAi';
 import { serializeDiagramSvg } from './svgExport';
 
@@ -29,7 +29,7 @@ const themeMap: Record<ThemeName, 'neutral' | 'default' | 'forest' | 'dark'> = {
 };
 
 function cleanOneLine(value: string) {
-  return value.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return plainMermaidLabels(value).replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function withAccessibility(source: string, title: string, description: string) {
@@ -54,7 +54,7 @@ function initialDraft(): Draft {
       const shared = JSON.parse(decoded) as Partial<Draft>;
       if (shared.source) {
         return {
-          source: shared.source,
+          source: plainMermaidLabels(shared.source),
           title: shared.title ?? 'Shared diagram',
           description: shared.description ?? '',
           theme: shared.theme && shared.theme in themeMap ? shared.theme : 'Paper',
@@ -67,7 +67,7 @@ function initialDraft(): Draft {
       const local = JSON.parse(saved) as Partial<Draft>;
       if (local.source) {
         return {
-          source: local.source,
+          source: plainMermaidLabels(local.source),
           title: local.title ?? 'My diagram',
           description: local.description ?? '',
           theme: local.theme && local.theme in themeMap ? local.theme : 'Paper',
@@ -134,7 +134,7 @@ export default function App() {
   const aiPreviewRef = useRef<HTMLTextAreaElement | null>(null);
 
   const renderSource = useMemo(
-    () => withAccessibility(draft.source, draft.title, draft.description),
+    () => withAccessibility(plainMermaidLabels(draft.source), draft.title, draft.description),
     [draft.source, draft.title, draft.description],
   );
 
@@ -616,7 +616,7 @@ export default function App() {
                   aria-label="Mermaid diagram text"
                   spellCheck={false}
                   value={draft.source}
-                  onChange={(event) => setDraft((current) => ({ ...current, source: event.target.value }))}
+                  onChange={(event) => setDraft((current) => ({ ...current, source: plainMermaidLabels(event.target.value) }))}
                 />
                 <details className="syntax-help">
                   <summary>New to Mermaid? Three useful patterns</summary>
