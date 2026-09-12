@@ -1,0 +1,20 @@
+{
+  "name": "drawdiagrams-mcp-service",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --config wrangler.jsonc",
+    "build": "tsc --project tsconfig.json --noEmit && wrangler deploy --dry-run --outdir dist --config wrangler.example.jsonc",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "jose": "6.2.12",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "wrangler": "4.131.1"
+  }
+}
