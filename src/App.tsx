@@ -6,6 +6,8 @@ import { DIAGRAM_SYSTEM_PROMPT, extractMermaid, LOCAL_MODEL } from './diagramAi'
 import { serializeDiagramSvg } from './svgExport';
 
 type ThemeName = 'Paper' | 'Classic' | 'Forest' | 'Dark';
+type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+type CpuReply = { id: number; type: 'progress' | 'result' | 'error'; message?: string; reply?: string };
 
 type Draft = {
   source: string;
@@ -121,8 +123,8 @@ export default function App() {
   const [aiError, setAiError] = useState('');
   const engineRef = useRef<MLCEngineInterface | null>(null);
   const workerRef = useRef<Worker | null>(null);
+  const cpuWorkerRef = useRef<Worker | null>(null);
   const generationRef = useRef(0);
-  const supportsWebGpu = typeof navigator !== 'undefined' && 'gpu' in navigator;
 
   const renderSource = useMemo(
     () => withAccessibility(draft.source, draft.title, draft.description),
@@ -141,6 +143,7 @@ export default function App() {
   useEffect(() => () => {
     generationRef.current += 1;
     workerRef.current?.terminate();
+    cpuWorkerRef.current?.terminate();
   }, []);
 
   useEffect(() => {
@@ -193,8 +196,39 @@ export default function App() {
     workerRef.current?.terminate();
     workerRef.current = null;
     engineRef.current = null;
+    cpuWorkerRef.current?.terminate();
+    cpuWorkerRef.current = null;
     setAiBusy(false);
     setAiProgress('Generation cancelled. The downloaded model can be reused from your browser cache.');
+  }
+
+  function generateOnCpu(messages: ChatMessage[], generation: number) {
+    cpuWorkerRef.current ??= new Worker(new URL('./diagramAi.cpu.worker.ts', import.meta.url), { type: 'module' });
+    const worker = cpuWorkerRef.current;
+    return new Promise<string>((resolve, reject) => {
+      const cleanup = () => {
+        worker.removeEventListener('message', onMessage);
+        worker.removeEventListener('error', onError);
+      };
+      const onMessage = (event: MessageEvent<CpuReply>) => {
+        const data = event.data;
+        if (data.id !== generation) return;
+        if (data.type === 'progress') {
+          if (generation === generationRef.current) setAiProgress(data.message ?? 'Loading CPU model…');
+          return;
+        }
+        cleanup();
+        if (data.type === 'error') reject(new Error(data.message ?? 'CPU model failed to run.'));
+        else resolve(data.reply ?? '');
+      };
+      const onError = () => {
+        cleanup();
+        reject(new Error('The CPU model could not start. Check available memory and network access.'));
+      };
+      worker.addEventListener('message', onMessage);
+      worker.addEventListener('error', onError);
+      worker.postMessage({ id: generation, messages });
+    });
   }
 
   async function generateDiagram() {
@@ -207,38 +241,55 @@ export default function App() {
 
     try {
       const gpu = (navigator as Navigator & { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu;
-      if (!gpu || !(await gpu.requestAdapter())) {
-        throw new Error('This browser has no usable WebGPU device. Try current Chrome or Edge on a computer, or edit a template below.');
-      }
-
-      if (!engineRef.current) {
-        setAiProgress('Loading the free model on this device. The first download may take a few minutes…');
-        const { CreateWebWorkerMLCEngine } = await import('@mlc-ai/web-llm');
-        if (generation !== generationRef.current) return;
-        const worker = new Worker(new URL('./diagramAi.worker.ts', import.meta.url), { type: 'module' });
-        workerRef.current = worker;
-        engineRef.current = await CreateWebWorkerMLCEngine(worker, LOCAL_MODEL, {
-          initProgressCallback: (progress) => {
-            if (generation === generationRef.current) setAiProgress(progress.text);
-          },
-        });
-      }
+      let useGpu = Boolean(await gpu?.requestAdapter().catch(() => null));
       if (generation !== generationRef.current) return;
 
-      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      const messages: ChatMessage[] = [
         { role: 'system', content: DIAGRAM_SYSTEM_PROMPT },
         { role: 'user', content: `Create a Mermaid diagram for: ${request}` },
       ];
+      const generateReply = async () => {
+        if (useGpu) {
+          try {
+            if (!engineRef.current) {
+              setAiProgress('Loading the GPU model. The first download may take a few minutes…');
+              const { CreateWebWorkerMLCEngine } = await import('@mlc-ai/web-llm');
+              if (generation !== generationRef.current) return '';
+              const worker = new Worker(new URL('./diagramAi.worker.ts', import.meta.url), { type: 'module' });
+              workerRef.current = worker;
+              const engine = await CreateWebWorkerMLCEngine(worker, LOCAL_MODEL, {
+                initProgressCallback: (progress) => {
+                  if (generation === generationRef.current) setAiProgress(progress.text);
+                },
+              });
+              if (generation !== generationRef.current) {
+                worker.terminate();
+                return '';
+              }
+              engineRef.current = engine;
+            }
+            if (generation !== generationRef.current) return '';
+            setAiProgress('Writing Mermaid text with the GPU model…');
+            const response = await engineRef.current.chat.completions.create({
+              messages, temperature: 0.2, max_tokens: 700, stream: false,
+            });
+            return response.choices[0]?.message.content ?? '';
+          } catch {
+            if (generation !== generationRef.current) return '';
+            workerRef.current?.terminate();
+            workerRef.current = null;
+            engineRef.current = null;
+            useGpu = false;
+            setAiProgress('GPU model unavailable. Switching to the CPU model…');
+          }
+        }
+        return generateOnCpu(messages, generation);
+      };
+
       for (let attempt = 0; attempt < 2; attempt += 1) {
-        setAiProgress(attempt ? 'Repairing Mermaid syntax on this device…' : 'Writing Mermaid text on this device…');
-        const response = await engineRef.current.chat.completions.create({
-          messages,
-          temperature: 0.2,
-          max_tokens: 700,
-          stream: false,
-        });
+        if (attempt) setAiProgress('Repairing Mermaid syntax on this device…');
+        const reply = await generateReply();
         if (generation !== generationRef.current) return;
-        const reply = response.choices[0]?.message.content ?? '';
 
         try {
           const candidate = extractMermaid(reply);
@@ -264,6 +315,8 @@ export default function App() {
           workerRef.current?.terminate();
           workerRef.current = null;
         }
+        cpuWorkerRef.current?.terminate();
+        cpuWorkerRef.current = null;
         setAiError(error instanceof Error ? error.message : 'Local AI could not generate this diagram.');
         setAiProgress('Your existing diagram is unchanged.');
       }
@@ -409,7 +462,7 @@ export default function App() {
               maxLength={3000}
             />
             <div className="ai-controls">
-              <button className="primary" type="button" onClick={generateDiagram} disabled={aiBusy || !description.trim() || !supportsWebGpu}>
+              <button className="primary" type="button" onClick={generateDiagram} disabled={aiBusy || !description.trim()}>
                 {aiBusy ? 'Generating…' : 'Generate Mermaid diagram'}
               </button>
               {aiBusy && <button type="button" onClick={cancelGeneration}>Cancel</button>}
@@ -417,9 +470,7 @@ export default function App() {
             </div>
             {aiError && <p className="ai-error" role="alert">{aiError}</p>}
             <p className="ai-note">
-              {supportsWebGpu
-                ? 'No account or API key. The model downloads on first use and is cached in this browser; your description is processed locally. A capable WebGPU device and free storage are needed.'
-                : 'Local AI needs WebGPU, which is unavailable here. You can still use the templates and Mermaid editor below.'}
+              No account or API key. The model runs in your browser on GPU or CPU. The first download is large (about 786 MB on CPU) and CPU generation may take several minutes. Your description is processed locally.
             </p>
           </div>
         </section>

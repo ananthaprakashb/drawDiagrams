@@ -49,9 +49,9 @@ The MVP is deliberately static and browser-only.
 
 ## Free on-device AI
 
-Click **Generate Mermaid diagram** after explaining what to show. The app lazily loads WebLLM with the open Qwen2.5-0.5B-Instruct model, then asks it for a flowchart, sequence diagram, timeline, or mind map. Mermaid validates the generated syntax and the app makes one local repair attempt if needed. The current diagram is replaced only after validation; the Mermaid editor remains available for review and corrections.
+Click **Generate Mermaid diagram** after explaining what to show. The app lazily loads the open Qwen2.5-0.5B-Instruct model using WebLLM on a usable WebGPU device, or Transformers.js/ONNX Runtime on the browser CPU (WASM) when WebGPU is unavailable or fails. The model generates a flowchart, sequence diagram, timeline, or mind map. Mermaid validates the syntax and the app makes one local repair attempt if needed. The current diagram is replaced only after validation; the Mermaid editor remains available for review and corrections.
 
-No subscription, account, application server, API key, or per-request fee is required. The tradeoff is an initial model download of several hundred MB, roughly 1 GB of GPU memory for the selected quantization, and a browser/device with WebGPU support. Browsers without WebGPU keep the template and manual editor. Model availability and download speed depend on the external model hosts; after caching, inference can run without sending the description to them. AI can still misunderstand the explanation, so verify the diagram before sharing it.
+No subscription, account, application server, API key, or per-request fee is required. The tradeoff is a large first download (the CPU q4 ONNX model alone is about 786 MB), browser storage and memory requirements, and slower inference on CPU (possibly several minutes). GPU inference needs a capable WebGPU device and roughly 1 GB of GPU memory. The CPU worker uses a single WASM thread so it works on static hosting without cross-origin isolation headers. Model availability and download speed depend on external model hosts; after caching, inference can run without sending the description to them. AI can still misunderstand the explanation, so verify the diagram before sharing it.
 
 ## Accessibility
 
