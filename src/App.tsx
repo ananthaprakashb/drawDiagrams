@@ -100,10 +100,10 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function exportedDiagramSvg() {
+function exportedDiagramSvg(options: { rasterSafe?: boolean } = {}) {
   const renderedSvg = document.querySelector<SVGSVGElement>('.diagram-output svg');
   if (!renderedSvg) throw new Error('No rendered diagram is available');
-  return serializeDiagramSvg(renderedSvg);
+  return serializeDiagramSvg(renderedSvg, options);
 }
 
 export default function App() {
@@ -135,6 +135,8 @@ export default function App() {
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'strict',
+          // Native SVG text keeps PNG canvases readable across browsers.
+          htmlLabels: false,
           theme: themeMap[draft.theme],
           fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
         });
@@ -207,7 +209,7 @@ export default function App() {
     if (!svg) return;
 
     try {
-      const { serialized, root: documentSvg } = exportedDiagramSvg();
+      const { serialized, root: documentSvg } = exportedDiagramSvg({ rasterSafe: true });
       const viewBox = documentSvg.getAttribute('viewBox')?.split(/\s+/).map(Number);
       const width = Math.max(320, viewBox?.[2] || Number(documentSvg.getAttribute('width')) || 1200);
       const height = Math.max(240, viewBox?.[3] || Number(documentSvg.getAttribute('height')) || 800);
@@ -218,28 +220,34 @@ export default function App() {
       const image = new Image();
 
       image.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(width * scale);
-        canvas.height = Math.round(height * scale);
-        const context = canvas.getContext('2d');
-        if (!context) {
-          URL.revokeObjectURL(url);
-          setStatus('PNG export is not supported by this browser');
-          return;
-        }
-
-        if (draft.theme !== 'Dark') {
-          context.fillStyle = '#ffffff';
-          context.fillRect(0, 0, canvas.width, canvas.height);
-        }
-        context.drawImage(image, 0, 0, canvas.width, canvas.height);
-        URL.revokeObjectURL(url);
-        canvas.toBlob((png) => {
-          if (png) {
-            downloadBlob(png, filenameFrom(draft.title, 'png'));
-            setStatus('PNG downloaded');
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(width * scale);
+          canvas.height = Math.round(height * scale);
+          const context = canvas.getContext('2d');
+          if (!context) {
+            setStatus('PNG export is not supported by this browser');
+            return;
           }
-        }, 'image/png');
+
+          if (draft.theme !== 'Dark') {
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+          }
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((png) => {
+            if (png) {
+              downloadBlob(png, filenameFrom(draft.title, 'png'));
+              setStatus('PNG downloaded');
+            } else {
+              setStatus('Could not encode this diagram as PNG');
+            }
+          }, 'image/png');
+        } catch {
+          setStatus('Could not convert this diagram to PNG');
+        } finally {
+          URL.revokeObjectURL(url);
+        }
       };
 
       image.onerror = () => {
