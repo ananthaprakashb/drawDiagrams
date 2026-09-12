@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import mermaid from 'mermaid';
 import { audiences, templates, type Audience, type DiagramTemplate } from './templates';
+import { serializeDiagramSvg } from './svgExport';
 
 type ThemeName = 'Paper' | 'Classic' | 'Forest' | 'Dark';
 
@@ -99,6 +100,12 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function exportedDiagramSvg(options: { rasterSafe?: boolean } = {}) {
+  const renderedSvg = document.querySelector<SVGSVGElement>('.diagram-output svg');
+  if (!renderedSvg) throw new Error('No rendered diagram is available');
+  return serializeDiagramSvg(renderedSvg, options);
+}
+
 export default function App() {
   const [draft, setDraft] = useState<Draft>(initialDraft);
   const [audience, setAudience] = useState<Audience>('Everyone');
@@ -128,6 +135,8 @@ export default function App() {
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'strict',
+          // Native SVG text keeps PNG canvases readable across browsers.
+          htmlLabels: false,
           theme: themeMap[draft.theme],
           fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
         });
@@ -187,47 +196,58 @@ export default function App() {
 
   function exportSvg() {
     if (!svg) return;
-    downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), filenameFrom(draft.title, 'svg'));
-    setStatus('SVG downloaded');
+    try {
+      const { serialized } = exportedDiagramSvg();
+      downloadBlob(new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' }), filenameFrom(draft.title, 'svg'));
+      setStatus('SVG downloaded');
+    } catch {
+      setStatus('Could not export SVG');
+    }
   }
 
   async function exportPng() {
     if (!svg) return;
 
     try {
-      const documentSvg = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
+      const { serialized, root: documentSvg } = exportedDiagramSvg({ rasterSafe: true });
       const viewBox = documentSvg.getAttribute('viewBox')?.split(/\s+/).map(Number);
       const width = Math.max(320, viewBox?.[2] || Number(documentSvg.getAttribute('width')) || 1200);
       const height = Math.max(240, viewBox?.[3] || Number(documentSvg.getAttribute('height')) || 800);
       const scale = Math.min(2, 4096 / Math.max(width, height));
 
-      const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+      const blob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const image = new Image();
 
       image.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(width * scale);
-        canvas.height = Math.round(height * scale);
-        const context = canvas.getContext('2d');
-        if (!context) {
-          URL.revokeObjectURL(url);
-          setStatus('PNG export is not supported by this browser');
-          return;
-        }
-
-        if (draft.theme !== 'Dark') {
-          context.fillStyle = '#ffffff';
-          context.fillRect(0, 0, canvas.width, canvas.height);
-        }
-        context.drawImage(image, 0, 0, canvas.width, canvas.height);
-        URL.revokeObjectURL(url);
-        canvas.toBlob((png) => {
-          if (png) {
-            downloadBlob(png, filenameFrom(draft.title, 'png'));
-            setStatus('PNG downloaded');
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(width * scale);
+          canvas.height = Math.round(height * scale);
+          const context = canvas.getContext('2d');
+          if (!context) {
+            setStatus('PNG export is not supported by this browser');
+            return;
           }
-        }, 'image/png');
+
+          if (draft.theme !== 'Dark') {
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+          }
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((png) => {
+            if (png) {
+              downloadBlob(png, filenameFrom(draft.title, 'png'));
+              setStatus('PNG downloaded');
+            } else {
+              setStatus('Could not encode this diagram as PNG');
+            }
+          }, 'image/png');
+        } catch {
+          setStatus('Could not convert this diagram to PNG');
+        } finally {
+          URL.revokeObjectURL(url);
+        }
       };
 
       image.onerror = () => {
@@ -404,9 +424,9 @@ export default function App() {
             <p>SVG stays sharp in documents and websites. PNG is convenient for slides and social posts. Print can be saved as PDF.</p>
           </div>
           <div className="export-actions">
-            <button className="primary" type="button" onClick={exportSvg} disabled={!svg}>Download SVG</button>
-            <button type="button" onClick={exportPng} disabled={!svg}>Download PNG</button>
-            <button type="button" onClick={printDiagram} disabled={!svg}>Print / Save PDF</button>
+            <button className="primary" type="button" onClick={exportSvg} disabled={!svg || !!renderError}>Download SVG</button>
+            <button type="button" onClick={exportPng} disabled={!svg || !!renderError}>Download PNG</button>
+            <button type="button" onClick={printDiagram} disabled={!svg || !!renderError}>Print / Save PDF</button>
           </div>
         </section>
 
