@@ -286,7 +286,7 @@ export default function App() {
     <div className="app-shell">
       <header className="site-header">
         <a className="brand" href="./" aria-label="DrawDiagrams home">
-          <span className="brand-mark" aria-hidden="true">◇</span>
+          <img className="brand-mark" src={`${import.meta.env.BASE_URL}logo.svg`} alt="" aria-hidden="true" />
           <span>DrawDiagrams</span>
         </a>
         <div className="header-actions">
