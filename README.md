@@ -2,17 +2,18 @@
 
 A free, browser-first Mermaid diagram studio designed for people who need to **explain something visually** — not only people who already know diagram syntax.
 
-The initial public-service release is aimed at teachers, authors, nonprofit/civic teams, documentation writers, and developers. Users start from a purpose-driven template, edit plain text, see a live preview, add accessible context, and export the result.
+The public-service release is aimed at teachers, authors, nonprofit/civic teams, documentation writers, and developers. Users can describe a diagram in ordinary language or start from a template, edit Mermaid text, see a live preview, add accessible context, and export the result.
 
 ## Why this project
 
 Mermaid is powerful, portable, and text-based, but a blank Mermaid editor still assumes that the user already knows which diagram to choose and how to write it. DrawDiagrams adds a human-facing layer:
 
-**Choose a purpose → change familiar words → preview → describe for accessibility → export/share.**
+**Describe an idea or choose a purpose → review Mermaid text → preview → describe for accessibility → export/share.**
 
 ## MVP features
 
 - Purpose-driven starter templates for teachers, authors, public-service teams, and technical users
+- Optional local AI generation from a plain-language description, with no API key or subscription
 - Live Mermaid preview
 - Mermaid source remains visible and editable — no proprietary diagram format
 - Local browser autosave
@@ -43,7 +44,14 @@ The MVP is deliberately static and browser-only.
 - Diagram editing and rendering happen in the browser.
 - Drafts are stored in `localStorage` on the user's device.
 - The core experience does not send diagram content to an application server.
+- AI generation runs in a Web Worker on the user's device. The model files are downloaded from MLC/Hugging Face on first use and cached by the browser; user descriptions are not submitted to a model API.
 - A share link stores the draft in the URL fragment. Users should still avoid putting sensitive information in URLs they plan to share.
+
+## Free on-device AI
+
+Click **Generate Mermaid diagram** after explaining what to show. The app lazily loads WebLLM with the open Qwen2.5-0.5B-Instruct model, then asks it for a flowchart, sequence diagram, timeline, or mind map. Mermaid validates the generated syntax and the app makes one local repair attempt if needed. The current diagram is replaced only after validation; the Mermaid editor remains available for review and corrections.
+
+No subscription, account, application server, API key, or per-request fee is required. The tradeoff is an initial model download of several hundred MB, roughly 1 GB of GPU memory for the selected quantization, and a browser/device with WebGPU support. Browsers without WebGPU keep the template and manual editor. Model availability and download speed depend on the external model hosts; after caching, inference can run without sending the description to them. AI can still misunderstand the explanation, so verify the diagram before sharing it.
 
 ## Accessibility
 
@@ -61,6 +69,7 @@ User-provided Mermaid text is rendered with Mermaid's `securityLevel: 'strict'`.
 - TypeScript
 - Vite
 - Mermaid
+- WebLLM, loaded only when local AI is used
 
 The MVP pins Mermaid `11.17.2` while the major-version transition to Mermaid 12 is evaluated separately. This keeps the first public release on a known 11.x surface instead of taking a same-cycle major dependency change without a compatibility pass.
 
@@ -98,11 +107,7 @@ CI in `.github/workflows/ci.yml` type-checks and builds every push and pull requ
 
 Add simple form-based builders for common tasks such as "steps in a process", "people and relationships", "events over time", and "who talks to whom". Users should be able to produce Mermaid without editing syntax at all.
 
-### Phase 3 — Explain-to-diagram assistance
-
-Optionally let a user describe the idea in natural language and generate Mermaid, while keeping the browser editor and final Mermaid source as the source of truth. Any AI integration should be clearly separated from the private, local-only core editor.
-
-### Phase 4 — Community/public template library
+### Phase 3 — Community/public template library
 
 Add reviewed templates for lesson plans, research methods, government service navigation, emergency procedures, public meeting processes, book planning, nonprofit workflows, and software documentation.
 
