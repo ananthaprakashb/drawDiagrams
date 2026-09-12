@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 import type { MLCEngineInterface } from '@mlc-ai/web-llm';
 import { audiences, templates, type Audience, type DiagramTemplate } from './templates';
-import { DIAGRAM_SYSTEM_PROMPT, extractMermaid, LOCAL_MODEL } from './diagramAi';
+import { CPU_DIAGRAM_SYSTEM_PROMPT, DIAGRAM_SYSTEM_PROMPT, extractMermaid, LOCAL_MODEL } from './diagramAi';
 import { serializeDiagramSvg } from './svgExport';
 
 type ThemeName = 'Paper' | 'Classic' | 'Forest' | 'Dark';
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
-type CpuReply = { id: number; type: 'progress' | 'result' | 'error'; message?: string; reply?: string };
+type CpuReply = { id: number; type: 'progress' | 'partial' | 'result' | 'error'; message?: string; reply?: string; text?: string };
 
 type Draft = {
   source: string;
@@ -121,10 +121,14 @@ export default function App() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiProgress, setAiProgress] = useState('');
   const [aiError, setAiError] = useState('');
+  const [aiPreview, setAiPreview] = useState('');
+  const [aiElapsed, setAiElapsed] = useState(0);
   const engineRef = useRef<MLCEngineInterface | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const cpuWorkerRef = useRef<Worker | null>(null);
   const generationRef = useRef(0);
+  const generationActiveRef = useRef(false);
+  const aiPreviewRef = useRef<HTMLTextAreaElement | null>(null);
 
   const renderSource = useMemo(
     () => withAccessibility(draft.source, draft.title, draft.description),
@@ -139,6 +143,17 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
   }, [draft]);
+
+  useEffect(() => {
+    if (!aiBusy) return;
+    const started = Date.now();
+    const timer = window.setInterval(() => setAiElapsed(Math.floor((Date.now() - started) / 1000)), 5000);
+    return () => window.clearInterval(timer);
+  }, [aiBusy]);
+
+  useEffect(() => {
+    if (aiPreviewRef.current) aiPreviewRef.current.scrollTop = aiPreviewRef.current.scrollHeight;
+  }, [aiPreview]);
 
   useEffect(() => () => {
     generationRef.current += 1;
@@ -193,6 +208,7 @@ export default function App() {
 
   function cancelGeneration() {
     generationRef.current += 1;
+    generationActiveRef.current = false;
     workerRef.current?.terminate();
     workerRef.current = null;
     engineRef.current = null;
@@ -200,6 +216,26 @@ export default function App() {
     cpuWorkerRef.current = null;
     setAiBusy(false);
     setAiProgress('Generation cancelled. The downloaded model can be reused from your browser cache.');
+  }
+
+  async function usePartialDiagram() {
+    const generation = generationRef.current;
+    try {
+      const candidate = extractMermaid(aiPreview);
+      if (candidate.length < 40 || !candidate.includes('\n')) throw new Error('Diagram is incomplete');
+      await mermaid.parse(candidate);
+      if (generation !== generationRef.current || !generationActiveRef.current) return;
+      cancelGeneration();
+      setDraft((current) => ({ ...current, source: candidate }));
+      setShowCode(true);
+      setAiPreview('');
+      setAiError('');
+      setAiProgress('Partial diagram loaded. Check the editor and preview for missing steps.');
+    } catch {
+      if (generation === generationRef.current && generationActiveRef.current) {
+        setAiError('The generated text is not yet a complete Mermaid diagram. Let it continue or try again.');
+      }
+    }
   }
 
   function generateOnCpu(messages: ChatMessage[], generation: number) {
@@ -215,6 +251,10 @@ export default function App() {
         if (data.id !== generation) return;
         if (data.type === 'progress') {
           if (generation === generationRef.current) setAiProgress(data.message ?? 'Loading CPU model…');
+          return;
+        }
+        if (data.type === 'partial') {
+          if (generation === generationRef.current) setAiPreview(data.text?.slice(0, 10000) ?? '');
           return;
         }
         cleanup();
@@ -235,8 +275,11 @@ export default function App() {
     const request = description.trim();
     if (!request || aiBusy) return;
     const generation = ++generationRef.current;
+    generationActiveRef.current = true;
     setAiBusy(true);
     setAiError('');
+    setAiPreview('');
+    setAiElapsed(0);
     setAiProgress('Checking on-device AI support…');
 
     try {
@@ -283,11 +326,14 @@ export default function App() {
             setAiProgress('GPU model unavailable. Switching to the CPU model…');
           }
         }
-        return generateOnCpu(messages, generation);
+        return generateOnCpu([{ role: 'system', content: CPU_DIAGRAM_SYSTEM_PROMPT }, ...messages.slice(1)], generation);
       };
 
       for (let attempt = 0; attempt < 2; attempt += 1) {
-        if (attempt) setAiProgress('Repairing Mermaid syntax on this device…');
+        if (attempt) {
+          setAiPreview('');
+          setAiProgress('Repairing Mermaid syntax on this device…');
+        }
         const reply = await generateReply();
         if (generation !== generationRef.current) return;
 
@@ -297,6 +343,7 @@ export default function App() {
           if (generation !== generationRef.current) return;
           setDraft((current) => ({ ...current, source: candidate }));
           setShowCode(true);
+          setAiPreview('');
           setAiProgress('Diagram generated. Check the text and preview before sharing.');
           setStatus('Mermaid diagram generated locally');
           return;
@@ -321,7 +368,10 @@ export default function App() {
         setAiProgress('Your existing diagram is unchanged.');
       }
     } finally {
-      if (generation === generationRef.current) setAiBusy(false);
+      if (generation === generationRef.current) {
+        generationActiveRef.current = false;
+        setAiBusy(false);
+      }
     }
   }
 
@@ -467,7 +517,17 @@ export default function App() {
               </button>
               {aiBusy && <button type="button" onClick={cancelGeneration}>Cancel</button>}
               <span role="status" aria-live="polite">{aiProgress}</span>
+              {aiBusy && aiElapsed >= 5 && <span>Elapsed: {Math.floor(aiElapsed / 60)}m {String(aiElapsed % 60).padStart(2, '0')}s</span>}
             </div>
+            {aiBusy && !aiPreview && aiElapsed >= 30 && <p className="ai-note">Still working on your device. Generation may take several minutes; you can cancel at any time.</p>}
+            {aiPreview && (
+              <div className="ai-preview">
+                <label htmlFor="ai-generated-text">{aiBusy ? 'Mermaid text being generated (not yet validated)' : 'Incomplete Mermaid text from the cancelled or failed run'}</label>
+                <textarea id="ai-generated-text" ref={aiPreviewRef} value={aiPreview} readOnly rows={8} />
+                {aiBusy && <p className="ai-note">The diagram editor and preview will update after the generated text passes Mermaid validation.</p>}
+                {aiBusy && <button className="ai-use-partial" type="button" onClick={usePartialDiagram}>Try using this partial diagram</button>}
+              </div>
+            )}
             {aiError && <p className="ai-error" role="alert">{aiError}</p>}
             <p className="ai-note">
               No account or API key. The model runs in your browser on GPU or CPU. The first download is large (about 786 MB on CPU) and CPU generation may take several minutes. Your description is processed locally.
