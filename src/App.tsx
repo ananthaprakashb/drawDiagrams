@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 import { audiences, templates, type Audience, type DiagramTemplate } from './templates';
-import { plainMermaidLabels } from './mermaidLabels';
-import { serializeDiagramSvg } from './svgExport';
+import { plainMermaidLabels, prepareMermaidSource } from './mermaidLabels';
+import { pngScale, serializeDiagramSvg } from './svgExport';
 
 type ThemeName = 'Paper' | 'Classic' | 'Forest' | 'Dark';
 
@@ -50,7 +50,7 @@ function initialDraft(): Draft {
       const shared = JSON.parse(decoded) as Partial<Draft>;
       if (shared.source) {
         return {
-          source: plainMermaidLabels(shared.source),
+          source: prepareMermaidSource(shared.source),
           title: shared.title ?? 'Shared diagram',
           description: shared.description ?? '',
           theme: shared.theme && shared.theme in themeMap ? shared.theme : 'Paper',
@@ -63,7 +63,7 @@ function initialDraft(): Draft {
       const local = JSON.parse(saved) as Partial<Draft>;
       if (local.source) {
         return {
-          source: plainMermaidLabels(local.source),
+          source: prepareMermaidSource(local.source),
           title: local.title ?? 'My diagram',
           description: local.description ?? '',
           theme: local.theme && local.theme in themeMap ? local.theme : 'Paper',
@@ -114,10 +114,16 @@ export default function App() {
   const [renderError, setRenderError] = useState('');
   const [status, setStatus] = useState('Ready');
   const [showCode, setShowCode] = useState(true);
+  const [zoom, setZoom] = useState<'fit' | number>('fit');
+  const stageRef = useRef<HTMLDivElement>(null);
   const renderSource = useMemo(
-    () => withAccessibility(plainMermaidLabels(draft.source), draft.title, draft.description),
+    () => withAccessibility(prepareMermaidSource(draft.source), draft.title, draft.description),
     [draft.source, draft.title, draft.description],
   );
+  const naturalWidth = useMemo(() => {
+    const width = Number(svg.match(/viewBox="[^\"]*?\s+[^\"]*?\s+([\d.]+)\s+[-\d.]+"/)?.[1]);
+    return Number.isFinite(width) && width > 0 ? width : 1200;
+  }, [svg]);
 
   const visibleTemplates = useMemo(
     () => templates.filter((template) => audience === 'Everyone' || template.audience === audience),
@@ -155,7 +161,7 @@ export default function App() {
           setStatus('Fix the highlighted diagram text');
         }
       }
-    }, 260);
+    }, renderSource.length > 2500 ? 850 : 260);
 
     return () => {
       cancelled = true;
@@ -166,11 +172,21 @@ export default function App() {
   function useTemplate(template: DiagramTemplate) {
     setDraft((current) => ({
       ...current,
-      source: template.source,
+      source: prepareMermaidSource(template.source),
       title: template.name,
       description: template.purpose,
     }));
     setStatus(`${template.name} loaded`);
+  }
+
+  function currentZoom() {
+    if (zoom !== 'fit') return zoom;
+    return Math.min(1, Math.max(1, (stageRef.current?.clientWidth ?? 800) - 60) / naturalWidth);
+  }
+
+  function changeZoom(direction: 1 | -1) {
+    const next = currentZoom() * (direction > 0 ? 1.5 : 1 / 1.5);
+    setZoom(Math.min(3, Math.max(direction > 0 ? 0.25 : 0.005, next)));
   }
 
   async function copyMermaid() {
@@ -213,7 +229,7 @@ export default function App() {
       const viewBox = documentSvg.getAttribute('viewBox')?.split(/\s+/).map(Number);
       const width = Math.max(320, viewBox?.[2] || Number(documentSvg.getAttribute('width')) || 1200);
       const height = Math.max(240, viewBox?.[3] || Number(documentSvg.getAttribute('height')) || 800);
-      const scale = Math.min(2, 4096 / Math.max(width, height));
+      const scale = pngScale(width, height);
 
       const blob = new Blob([serialized], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -332,7 +348,7 @@ export default function App() {
               <h2 id="studio-heading">Mermaid editor and live preview</h2>
             </div>
             <div className="studio-actions">
-              <button type="button" onClick={() => setShowCode((value) => !value)}>{showCode ? 'Hide text' : 'Edit text'}</button>
+              <button type="button" onClick={() => setShowCode((value) => !value)}>{showCode ? 'Expand preview' : 'Show editor'}</button>
               <button type="button" onClick={copyMermaid}>Copy Mermaid</button>
               <button type="button" onClick={shareDiagram}>Copy share link</button>
             </div>
@@ -349,7 +365,7 @@ export default function App() {
                   aria-label="Mermaid diagram text"
                   spellCheck={false}
                   value={draft.source}
-                  onChange={(event) => setDraft((current) => ({ ...current, source: plainMermaidLabels(event.target.value) }))}
+                  onChange={(event) => setDraft((current) => ({ ...current, source: prepareMermaidSource(event.target.value) }))}
                 />
                 <details className="syntax-help">
                   <summary>New to Mermaid? Three useful patterns</summary>
@@ -361,20 +377,28 @@ export default function App() {
             )}
 
             <div className="preview-panel">
-              <div className="panel-title">
+              <div className="panel-title preview-title">
                 <span>Live preview</span>
-                <label>
-                  <span className="sr-only">Diagram theme</span>
-                  <select
-                    value={draft.theme}
-                    onChange={(event) => setDraft((current) => ({ ...current, theme: event.target.value as ThemeName }))}
-                  >
-                    {Object.keys(themeMap).map((name) => <option key={name}>{name}</option>)}
-                  </select>
-                </label>
+                <div className="preview-controls">
+                  <div className="zoom-controls" role="group" aria-label="Diagram zoom">
+                    <button type="button" onClick={() => changeZoom(-1)} aria-label="Zoom out" disabled={!svg || !!renderError}>−</button>
+                    <button type="button" onClick={() => setZoom('fit')} aria-label="Fit diagram" aria-pressed={zoom === 'fit'} disabled={!svg || !!renderError}>Fit</button>
+                    <button type="button" onClick={() => setZoom(1)} aria-label="Actual size" aria-pressed={zoom === 1} disabled={!svg || !!renderError}>100%</button>
+                    <button type="button" onClick={() => changeZoom(1)} aria-label="Zoom in" disabled={!svg || !!renderError}>+</button>
+                  </div>
+                  <label>
+                    <span className="sr-only">Diagram theme</span>
+                    <select
+                      value={draft.theme}
+                      onChange={(event) => setDraft((current) => ({ ...current, theme: event.target.value as ThemeName }))}
+                    >
+                      {Object.keys(themeMap).map((name) => <option key={name}>{name}</option>)}
+                    </select>
+                  </label>
+                </div>
               </div>
 
-              <div className="diagram-stage" aria-live="polite">
+              <div className="diagram-stage" ref={stageRef} aria-live="polite">
                 {renderError ? (
                   <div className="error-card" role="alert">
                     <strong>Mermaid needs a small fix.</strong>
@@ -382,7 +406,9 @@ export default function App() {
                     <p>Tip: reload one of the templates above, then change only its labels first.</p>
                   </div>
                 ) : (
-                  <div className="diagram-output" dangerouslySetInnerHTML={{ __html: svg }} />
+                  <div className="diagram-output" style={zoom === 'fit'
+                    ? { width: '100%', maxWidth: `${naturalWidth}px` }
+                    : { width: `${Math.round(naturalWidth * zoom)}px` }} dangerouslySetInnerHTML={{ __html: svg }} />
                 )}
               </div>
             </div>

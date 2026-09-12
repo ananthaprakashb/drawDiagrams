@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { serializeDiagramSvg } from '../src/svgExport.ts';
+import { pngScale, serializeDiagramSvg } from '../src/svgExport.ts';
+
+test('PNG scale preserves detail without exceeding common canvas limits', () => {
+  assert.equal(pngScale(500, 300), 2);
+  const scale = pngScale(12000, 5000);
+  assert.ok(12000 * scale <= 8192);
+  assert.ok(12000 * 5000 * scale * scale <= 24_000_000);
+});
 
 test('HTML line breaks in Mermaid labels export as well-formed SVG', () => {
   const { window } = new JSDOM('<div id="preview"></div>');

@@ -1,5 +1,10 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+export function pngScale(width: number, height: number) {
+  // Keep enough resolution for broad diagrams while bounding canvas memory.
+  return Math.min(2, 8192 / Math.max(width, height), Math.sqrt(24_000_000 / (width * height)) * 0.999);
+}
+
 function replaceHtmlLabels(svg: SVGSVGElement, renderedSvg: SVGSVGElement) {
   const renderedLabels = renderedSvg.querySelectorAll('foreignObject');
   for (const [index, foreignObject] of Array.from(svg.querySelectorAll('foreignObject')).entries()) {

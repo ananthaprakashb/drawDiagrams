@@ -13,8 +13,10 @@ Mermaid is powerful, portable, and text-based. DrawDiagrams pairs a direct Merma
 ## MVP features
 
 - Purpose-driven starter templates for teachers, authors, public-service teams, and technical users
+- Advanced BookNook use-case example with actors, a system boundary, subgraphs, and labeled relationships
 - Direct Mermaid text editing and paste
 - Live Mermaid preview
+- Fit, actual-size and zoom controls for large diagrams; expand the preview and scroll to inspect details
 - Mermaid source remains visible and editable — no proprietary diagram format
 - Local browser autosave
 - No account or application backend required
@@ -33,9 +35,11 @@ Mermaid is powerful, portable, and text-based. DrawDiagrams pairs a direct Merma
 | Teachers | Lesson flow, Concept map | Flowchart, Mind map |
 | Authors | Story timeline, Article structure | Timeline, Flowchart |
 | Public service | Public service path, Community journey | Flowchart, User journey |
-| Technical | System request, System architecture, Project plan | Sequence diagram, Architecture, Gantt |
+| Technical | System request, System architecture, Project plan, Bookstore use-case map | Sequence diagram, Architecture, Gantt, Flowchart |
 
 The template catalog is intentionally data-driven in `src/templates.ts` so community contributors can add useful patterns without changing the editor itself.
+
+The BookNook example is in `src/examples/booknook.mmd`. For SVG and PNG compatibility, the editor shows a self-contained person symbol in place of `fa:fa-user`, and converts flowchart `Admin --|> Author` to the supported `Admin -->|is a| Author` relationship. Mermaid 11 ignores a subgraph's `direction TB` when its nodes link outside that subgraph; these connections still render, but Mermaid controls their final layout. Use **Fit** for an overview, **100%** to read labels and scroll through the diagram, or **Expand preview** for more space. SVG export retains vector detail regardless of preview zoom. PNG renders up to 8192 pixels on its longest side with a 24-megapixel memory cap.
 
 ## Privacy model
 

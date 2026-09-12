@@ -1,0 +1,97 @@
+flowchart LR
+    %% Actors
+    subgraph LeftActors [" "]
+        direction TB
+        Guest["fa:fa-user Guest User"]
+        Customer["fa:fa-user Customer"]
+    end
+
+    subgraph RightActors [" "]
+        direction TB
+        Author["fa:fa-user Author"]
+        Admin["fa:fa-user Admin"]
+    end
+
+    PaymentGateway["fa:fa-user Payment Gateway"]
+
+    %% System Boundary
+    subgraph System ["BookNook Online Bookstore System"]
+        direction TB
+
+        Browse(["Browse Catalog"])
+        Register(["Register"])
+        ManageProfile(["Manage Profile"])
+
+        AddToCart(["Add to Cart"])
+        ViewCart(["View Cart"])
+        PlaceOrder(["Place Order"])
+
+        Checkout(["Checkout"])
+        AuthorizePayment(["Authorize Payment"])
+        ApplyCoupon(["Apply Coupon"])
+        LogTransaction(["Log Transaction"])
+
+        WriteReview(["Write Book Review"])
+        ManageSubs(["Manage Subscriptions"])
+
+        SubmitBook(["Submit Book"])
+        UpdateBookInfo(["Update Book Info"])
+
+        ManageContent(["Manage Content"])
+        AddNewBook(["Add New Book"])
+        EditBookDetails(["Edit Book Details"])
+        ManageCatalog(["Manage Catalog"])
+
+        ShipOrder(["Ship Order"])
+        ProcessReturn(["Process Return"])
+        ProcessOrders(["Process Orders"])
+
+        ManageAccounts(["Manage User Accounts"])
+        GenerateReports(["Generate Reports"])
+    end
+
+    %% Guest & Customer Associations
+    Guest --- Browse
+    Guest --- Register
+    Customer --- Browse
+    Customer --- AddToCart
+    Customer --- ViewCart
+    Customer --- PlaceOrder
+    Customer --- WriteReview
+    Customer --- ManageSubs
+
+    %% Author & Admin Associations
+    Author --- SubmitBook
+    Author --- UpdateBookInfo
+    Author --- ManageContent
+
+    Admin --- ManageContent
+    Admin --- ManageCatalog
+    Admin --- ProcessOrders
+    Admin --- ManageAccounts
+    Admin --- GenerateReports
+
+    %% Actor Generalization
+    Admin --|> Author
+
+    %% System Internal Relationships (Includes & Extends)
+    Register -.->|&lt;&lt;include&gt;&gt;| ManageProfile
+    PlaceOrder -.->|&lt;&lt;include&gt;&gt;| Checkout
+    PlaceOrder -.->|&lt;&lt;include&gt;&gt;| AuthorizePayment
+    PlaceOrder -.->|&lt;&lt;include&gt;&gt;| LogTransaction
+
+    ApplyCoupon -.->|&lt;&lt;extend&gt;&gt;| PlaceOrder
+
+    AddNewBook -.->|&lt;&lt;extend&gt;&gt;| ManageCatalog
+    EditBookDetails -.->|&lt;&lt;extend&gt;&gt;| ManageCatalog
+
+    ShipOrder -.->|&lt;&lt;extend&gt;&gt;| ProcessOrders
+    ProcessReturn -.->|&lt;&lt;extend&gt;&gt;| ProcessOrders
+
+    %% External System Association
+    AuthorizePayment --- PaymentGateway
+
+    %% Styling
+    style LeftActors fill:transparent,stroke:none
+    style RightActors fill:transparent,stroke:none
+    style System fill:#ffffff,stroke:#333333,stroke-width:2px
