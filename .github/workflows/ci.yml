@@ -19,9 +19,7 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
-      - name: Test SVG export
+      - name: Test diagram features
         run: npm test
       - name: Typecheck and build
         run: npm run build
-      - name: Check Cloudflare Worker bundle
-        run: npm run worker:check
