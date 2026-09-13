@@ -86,6 +86,23 @@ export const infographicTemplates: InfographicTemplate[] = [
       { name: 'Operations', left: ['Manual inspection'], right: ['Tracing', 'Budgets', 'Incident response'] },
     ],
   }),
+  template('ai-foundations-map', 'AI algorithms and data structures', 'AI engineers', 'Connect foundational computer-science structures and algorithms to their uses in AI systems.', {
+    type: 'infographic', layout: 'comparison', title: 'AI Foundations Map', subtitle: 'How classical algorithms and data structures reappear in modern AI', palette: 'ocean',
+    columns: { left: 'Classical foundation', right: 'AI and ML connection' },
+    sections: [
+      { name: 'Vectors and matrices', left: ['Arrays', 'Linear algebra', 'Matrix operations'], right: ['Tensors', 'Embeddings', 'Attention projections'] },
+      { name: 'Graphs', left: ['Nodes and edges', 'Adjacency lists', 'Graph traversal'], right: ['Knowledge graphs', 'Computation graphs', 'Agent state graphs'] },
+      { name: 'Trees', left: ['Binary trees', 'Search trees', 'Decision trees'], right: ['Random forests', 'MCTS planning', 'Hierarchical clustering'] },
+      { name: 'Hashing', left: ['Hash maps', 'Sets', 'Memoization'], right: ['Vocabulary lookup', 'Feature stores', 'Inference caches'] },
+      { name: 'Tries', left: ['Prefix trees', 'String lookup', 'Autocomplete'], right: ['Token prefixes', 'Constrained decoding', 'Lexical retrieval'] },
+      { name: 'Priority structures', left: ['Queues', 'Heaps', 'Ring buffers'], right: ['Beam search', 'Best-first planning', 'Replay buffers'] },
+      { name: 'Graph search', left: ['BFS and DFS', 'Dijkstra', 'A-star'], right: ['State-space planning', 'Path finding', 'Tool-chain exploration'] },
+      { name: 'Dynamic programming', left: ['Memoization', 'Tabulation', 'Optimal substructure'], right: ['Viterbi decoding', 'Sequence alignment', 'Value iteration'] },
+      { name: 'Nearest neighbors', left: ['Distance metrics', 'K-d trees', 'Locality hashing'], right: ['Vector retrieval', 'ANN indexes', 'Similarity search'] },
+      { name: 'Probabilistic models', left: ['Bayes rule', 'Markov chains', 'Sampling'], right: ['Naive Bayes', 'Hidden Markov models', 'Decision processes'] },
+      { name: 'Optimization', left: ['Calculus', 'Gradient methods', 'Numerical optimization'], right: ['Backpropagation', 'Model training', 'Parameter tuning'] },
+    ],
+  }),
   template('project-lifecycle', 'Project lifecycle', 'Project managers', 'Present project phases, deliverables, and governance checkpoints.', {
     type: 'infographic', layout: 'roadmap', title: 'Project Delivery Lifecycle', subtitle: 'Decisions and evidence at every phase', palette: 'sunset',
     sections: [
