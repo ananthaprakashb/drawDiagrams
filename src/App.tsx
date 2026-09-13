@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import mermaid from 'mermaid';
-import { audiences, templates, type Audience, type DiagramTemplate } from './templates';
+import { audiences as mermaidAudiences, templates, type DiagramTemplate } from './templates';
+import { infographicAudiences, infographicTemplates, type InfographicTemplate } from './infographicTemplates';
+import { renderInfographic } from './infographics';
 import { plainMermaidLabels, prepareMermaidSource } from './mermaidLabels';
 import { pngScale, serializeDiagramSvg } from './svgExport';
 
 type ThemeName = 'Paper' | 'Classic' | 'Forest' | 'Dark';
+type EditorMode = 'mermaid' | 'infographic';
 
 type Draft = {
+  mode: EditorMode;
   source: string;
   title: string;
   description: string;
@@ -50,7 +54,8 @@ function initialDraft(): Draft {
       const shared = JSON.parse(decoded) as Partial<Draft>;
       if (shared.source) {
         return {
-          source: prepareMermaidSource(shared.source),
+          mode: shared.mode === 'infographic' ? 'infographic' : 'mermaid',
+          source: shared.mode === 'infographic' ? shared.source : prepareMermaidSource(shared.source),
           title: shared.title ?? 'Shared diagram',
           description: shared.description ?? '',
           theme: shared.theme && shared.theme in themeMap ? shared.theme : 'Paper',
@@ -63,7 +68,8 @@ function initialDraft(): Draft {
       const local = JSON.parse(saved) as Partial<Draft>;
       if (local.source) {
         return {
-          source: prepareMermaidSource(local.source),
+          mode: local.mode === 'infographic' ? 'infographic' : 'mermaid',
+          source: local.mode === 'infographic' ? local.source : prepareMermaidSource(local.source),
           title: local.title ?? 'My diagram',
           description: local.description ?? '',
           theme: local.theme && local.theme in themeMap ? local.theme : 'Paper',
@@ -75,6 +81,7 @@ function initialDraft(): Draft {
   }
 
   return {
+    mode: 'mermaid',
     source: defaultTemplate.source,
     title: defaultTemplate.name,
     description: defaultTemplate.purpose,
@@ -109,7 +116,7 @@ function exportedDiagramSvg(options: { rasterSafe?: boolean } = {}) {
 
 export default function App() {
   const [draft, setDraft] = useState<Draft>(initialDraft);
-  const [audience, setAudience] = useState<Audience>('Everyone');
+  const [audience, setAudience] = useState('Everyone');
   const [svg, setSvg] = useState('');
   const [renderError, setRenderError] = useState('');
   const [status, setStatus] = useState('Ready');
@@ -117,8 +124,10 @@ export default function App() {
   const [zoom, setZoom] = useState<'fit' | number>('fit');
   const stageRef = useRef<HTMLDivElement>(null);
   const renderSource = useMemo(
-    () => withAccessibility(prepareMermaidSource(draft.source), draft.title, draft.description),
-    [draft.source, draft.title, draft.description],
+    () => draft.mode === 'mermaid'
+      ? withAccessibility(prepareMermaidSource(draft.source), draft.title, draft.description)
+      : draft.source,
+    [draft.mode, draft.source, draft.title, draft.description],
   );
   const naturalWidth = useMemo(() => {
     const width = Number(svg.match(/viewBox="[^\"]*?\s+[^\"]*?\s+([\d.]+)\s+[-\d.]+"/)?.[1]);
@@ -126,9 +135,12 @@ export default function App() {
   }, [svg]);
 
   const visibleTemplates = useMemo(
-    () => templates.filter((template) => audience === 'Everyone' || template.audience === audience),
-    [audience],
+    () => draft.mode === 'mermaid'
+      ? templates.filter((template) => audience === 'Everyone' || template.audience === audience)
+      : infographicTemplates.filter((template) => audience === 'Everyone' || template.audience === audience),
+    [audience, draft.mode],
   );
+  const availableAudiences = draft.mode === 'mermaid' ? mermaidAudiences : infographicAudiences;
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
@@ -138,6 +150,15 @@ export default function App() {
     let cancelled = false;
     const timer = window.setTimeout(async () => {
       try {
+        if (draft.mode === 'infographic') {
+          const result = renderInfographic(draft.source, draft.title, draft.description);
+          if (!cancelled) {
+            setSvg(result.svg);
+            setRenderError('');
+            setStatus('Infographic updated');
+          }
+          return;
+        }
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'strict',
@@ -167,12 +188,12 @@ export default function App() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [renderSource, draft.theme]);
+  }, [renderSource, draft.mode, draft.source, draft.title, draft.description, draft.theme]);
 
-  function useTemplate(template: DiagramTemplate) {
+  function useTemplate(template: DiagramTemplate | InfographicTemplate) {
     setDraft((current) => ({
       ...current,
-      source: prepareMermaidSource(template.source),
+      source: current.mode === 'mermaid' ? prepareMermaidSource(template.source) : template.source,
       title: template.name,
       description: template.purpose,
     }));
@@ -189,10 +210,10 @@ export default function App() {
     setZoom(Math.min(3, Math.max(direction > 0 ? 0.25 : 0.005, next)));
   }
 
-  async function copyMermaid() {
+  async function copySource() {
     try {
       await navigator.clipboard.writeText(renderSource);
-      setStatus('Mermaid text copied');
+      setStatus(draft.mode === 'mermaid' ? 'Mermaid text copied' : 'Infographic JSON copied');
     } catch {
       setStatus('Clipboard access was blocked by the browser');
     }
@@ -298,25 +319,29 @@ export default function App() {
       <main>
         <section className="hero">
           <p className="eyebrow">Free visual explanation tool</p>
-          <h1>Make your ideas clear. <span>With Mermaid.</span></h1>
+          <h1>Make your ideas clear. <span>As diagrams or infographics.</span></h1>
           <p className="hero-copy">
-            Choose a template or paste Mermaid text, then edit, preview, and export your diagram
-            for a lesson, article, public-service guide, or technical document.
+            Start from Mermaid or structured infographic templates, then edit, preview, and export
+            for engineering, delivery, teaching, writing, or management.
           </p>
-          <a className="editor-link" href="#studio-heading">Write Mermaid text →</a>
+          <a className="editor-link" href="#studio-heading">Open the visual studio →</a>
           <div className="trust-row" aria-label="Product principles">
             <span>No account</span><span>Local drafts</span><span>Local autosave</span><span>Accessible SVG</span>
           </div>
         </section>
 
         <section className="template-section" aria-labelledby="templates-heading">
+          <div className="mode-tabs" role="group" aria-label="Visual format">
+            <button type="button" className={draft.mode === 'mermaid' ? 'active' : ''} onClick={() => { setDraft((current) => current.mode === 'mermaid' ? current : ({ ...current, mode: 'mermaid', source: defaultTemplate.source, title: defaultTemplate.name, description: defaultTemplate.purpose })); setAudience('Everyone'); }}>Mermaid diagrams</button>
+            <button type="button" className={draft.mode === 'infographic' ? 'active' : ''} onClick={() => { setDraft((current) => current.mode === 'infographic' ? current : ({ ...current, mode: 'infographic', source: infographicTemplates[0].source, title: infographicTemplates[0].name, description: infographicTemplates[0].purpose })); setAudience('Everyone'); }}>Visual infographics</button>
+          </div>
           <div className="section-heading">
             <div>
               <p className="eyebrow">1 · Choose a starting point</p>
-              <h2 id="templates-heading">Start from a template</h2>
+              <h2 id="templates-heading">{draft.mode === 'mermaid' ? 'Start from a diagram template' : 'Start from an infographic template'}</h2>
             </div>
             <div className="audience-tabs" aria-label="Filter templates by audience">
-              {audiences.map((item) => (
+              {availableAudiences.map((item) => (
                 <button
                   key={item}
                   className={audience === item ? 'active' : ''}
@@ -344,12 +369,12 @@ export default function App() {
         <section className="studio" aria-labelledby="studio-heading">
           <div className="section-heading studio-heading">
             <div>
-              <p className="eyebrow">2 · Write or paste Mermaid text</p>
-              <h2 id="studio-heading">Mermaid editor and live preview</h2>
+              <p className="eyebrow">2 · Edit structured source</p>
+              <h2 id="studio-heading">{draft.mode === 'mermaid' ? 'Mermaid editor and live preview' : 'Infographic JSON and live preview'}</h2>
             </div>
             <div className="studio-actions">
               <button type="button" onClick={() => setShowCode((value) => !value)}>{showCode ? 'Expand preview' : 'Show editor'}</button>
-              <button type="button" onClick={copyMermaid}>Copy Mermaid</button>
+              <button type="button" onClick={copySource}>{draft.mode === 'mermaid' ? 'Copy Mermaid' : 'Copy JSON'}</button>
               <button type="button" onClick={shareDiagram}>Copy share link</button>
             </div>
           </div>
@@ -359,20 +384,28 @@ export default function App() {
               <div className="editor-panel">
                 <div className="panel-title">
                   <span>Diagram text</span>
-                  <span className="muted">Mermaid</span>
+                  <span className="muted">{draft.mode === 'mermaid' ? 'Mermaid' : 'JSON'}</span>
                 </div>
                 <textarea
-                  aria-label="Mermaid diagram text"
+                  aria-label={draft.mode === 'mermaid' ? 'Mermaid diagram text' : 'Infographic JSON'}
                   spellCheck={false}
                   value={draft.source}
-                  onChange={(event) => setDraft((current) => ({ ...current, source: prepareMermaidSource(event.target.value) }))}
+                  onChange={(event) => setDraft((current) => ({ ...current, source: current.mode === 'mermaid' ? prepareMermaidSource(event.target.value) : event.target.value }))}
                 />
-                <details className="syntax-help">
-                  <summary>New to Mermaid? Three useful patterns</summary>
-                  <code>A["Idea"] --&gt; B["Next step"]</code>
-                  <code>C{"Decision?"} -- "Yes" --&gt; D["Action"]</code>
-                  <p>Start from a template and usually you only need to replace the words inside quotes.</p>
-                </details>
+                {draft.mode === 'mermaid' ? (
+                  <details className="syntax-help">
+                    <summary>New to Mermaid? Three useful patterns</summary>
+                    <code>A["Idea"] --&gt; B["Next step"]</code>
+                    <code>C{"Decision?"} -- "Yes" --&gt; D["Action"]</code>
+                    <p>Start from a template and usually you only need to replace the words inside quotes.</p>
+                  </details>
+                ) : (
+                  <details className="syntax-help">
+                    <summary>How infographic JSON works</summary>
+                    <p>Choose layered-stack, comparison, roadmap, or pyramid. Edit the title and section labels while preserving quotes, commas, and brackets.</p>
+                    <code>{'"layout": "layered-stack"'}</code>
+                  </details>
+                )}
               </div>
             )}
 
@@ -386,7 +419,7 @@ export default function App() {
                     <button type="button" onClick={() => setZoom(1)} aria-label="Actual size" aria-pressed={zoom === 1} disabled={!svg || !!renderError}>100%</button>
                     <button type="button" onClick={() => changeZoom(1)} aria-label="Zoom in" disabled={!svg || !!renderError}>+</button>
                   </div>
-                  <label>
+                  {draft.mode === 'mermaid' && <label>
                     <span className="sr-only">Diagram theme</span>
                     <select
                       value={draft.theme}
@@ -394,16 +427,16 @@ export default function App() {
                     >
                       {Object.keys(themeMap).map((name) => <option key={name}>{name}</option>)}
                     </select>
-                  </label>
+                  </label>}
                 </div>
               </div>
 
               <div className="diagram-stage" ref={stageRef} aria-live="polite">
                 {renderError ? (
                   <div className="error-card" role="alert">
-                    <strong>Mermaid needs a small fix.</strong>
+                    <strong>{draft.mode === 'mermaid' ? 'Mermaid needs a small fix.' : 'Infographic JSON needs a small fix.'}</strong>
                     <p>{renderError}</p>
-                    <p>Tip: reload one of the templates above, then change only its labels first.</p>
+                    <p>Tip: reload one of the templates above, then change only its quoted labels first.</p>
                   </div>
                 ) : (
                   <div className="diagram-output" style={zoom === 'fit'
@@ -420,7 +453,7 @@ export default function App() {
               <p className="eyebrow">3 · Make the meaning portable</p>
             <h2 id="accessibility-heading">Describe the diagram for everyone</h2>
             <p>
-              The title and description are embedded into the rendered SVG using Mermaid accessibility metadata,
+              The title and description are embedded into the rendered SVG,
               so screen readers and search tools have context beyond the picture.
             </p>
           </div>
@@ -458,9 +491,9 @@ export default function App() {
         </section>
 
         <section className="principles">
-          <article><span>01</span><h3>Start from a template</h3><p>Choose a useful example or paste Mermaid text directly into the editor.</p></article>
+          <article><span>01</span><h3>Start from a template</h3><p>Choose a useful example, paste Mermaid, or edit structured infographic JSON.</p></article>
           <article><span>02</span><h3>Public by design</h3><p>No sign-in or backend is required for the core editor; drafts remain in the browser.</p></article>
-          <article><span>03</span><h3>Open format</h3><p>The source remains Mermaid text, so a diagram is portable and can live beside documentation.</p></article>
+          <article><span>03</span><h3>Open format</h3><p>The source remains Mermaid text or readable JSON, so visuals can live beside documentation.</p></article>
           <article><span>04</span><h3>Accessible output</h3><p>Every diagram can carry an accessible title and description, not just visual labels.</p></article>
         </section>
       </main>
