@@ -134,13 +134,13 @@ h2 {
   letter-spacing: -0.05em;
 }
 
-.audience-tabs, .studio-actions, .export-actions {
+.audience-tabs, .mode-tabs, .studio-actions, .export-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.audience-tabs button, .studio-actions button, .export-actions button {
+.audience-tabs button, .mode-tabs button, .studio-actions button, .export-actions button {
   min-height: 40px;
   padding: 9px 13px;
   border: 1px solid #b8c5bf;
@@ -149,8 +149,19 @@ h2 {
   color: #283630;
 }
 
-.audience-tabs button:hover, .studio-actions button:hover, .export-actions button:hover { border-color: #426b5c; }
-.audience-tabs button.active { background: #173f35; border-color: #173f35; color: white; }
+.audience-tabs button:hover, .mode-tabs button:hover, .studio-actions button:hover, .export-actions button:hover { border-color: #426b5c; }
+.audience-tabs button.active, .mode-tabs button.active { background: #173f35; border-color: #173f35; color: white; }
+
+.mode-tabs {
+  width: fit-content;
+  margin-bottom: 28px;
+  padding: 5px;
+  border: 1px solid #bdc9c3;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.mode-tabs button { border-color: transparent; background: transparent; }
 
 .template-grid {
   display: grid;
