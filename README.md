@@ -49,9 +49,11 @@ The template catalogs are intentionally data-driven in `src/templates.ts` and `s
 | Data engineers | Modern data platform, Data quality pyramid | Layered stack, Pyramid |
 | AI engineers | AI agent stack, AI system readiness, AI algorithms and data structures | Layered stack, Comparison |
 | Project managers | Project lifecycle, Project trade-off canvas | Roadmap, Comparison |
-| Management | Management operating model, Delegation boundaries | Layered stack, Pyramid |
+| Management | Management operating model, Delegation boundaries, Engineering career map | Layered stack, Pyramid |
 
 Infographic documents use a small JSON schema with a title, optional subtitle and column labels, palette, layout, and two to twelve sections. Section content is XML-escaped before rendering. Four palettes and the four layouts above are available without network calls or additional assets.
+
+The research basis and interpretation boundaries for the Tech Stack Ecosystem & Career Maps collection are recorded in [the content validation notes](docs/INFOGRAPHIC_CONTENT_VALIDATION.md).
 
 The BookNook example is in `src/examples/booknook.mmd`. For SVG and PNG compatibility, the editor shows a self-contained person symbol in place of `fa:fa-user`, and converts flowchart `Admin --|> Author` to the supported `Admin -->|is a| Author` relationship. Mermaid 11 ignores a subgraph's `direction TB` when its nodes link outside that subgraph; these connections still render, but Mermaid controls their final layout. Use **Fit** for an overview, **100%** to read labels and scroll through the diagram, or **Expand preview** for more space. SVG export retains vector detail regardless of preview zoom. PNG renders up to 8192 pixels on its longest side with a 24-megapixel memory cap.
 
