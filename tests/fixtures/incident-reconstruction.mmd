@@ -1,0 +1,67 @@
+graph TD
+    %% Theme Definitions based on provided color_palette
+    classDef header fill:none,color:#F8FAFC,stroke:none,font-size:20px
+    classDef subtext fill:none,color:#94A3B8,stroke:none,font-size:14px
+    classDef sectionTitle fill:#131C31,color:#F8FAFC,stroke:#1E293B,stroke-width:2px,font-weight:bold
+
+    %% Phase 1 Status Classes
+    classDef statusNormal fill:#131C31,color:#F8FAFC,stroke:#38BDF8,stroke-width:2px
+    classDef statusCritical fill:#131C31,color:#F8FAFC,stroke:#EF4444,stroke-width:2px
+    classDef statusWarning fill:#131C31,color:#F8FAFC,stroke:#F59E0B,stroke-width:2px
+
+    %% Other Elements
+    classDef transition fill:#EF4444,color:#F8FAFC,stroke:none,font-weight:bold
+    classDef gridCard fill:#131C31,color:#F8FAFC,stroke:#1E293B,stroke-width:2px
+    classDef takeaway fill:#131C31,color:#38BDF8,stroke:#38BDF8,stroke-width:2px
+
+    %% Header Block
+    H1[" SYSTEM INCIDENT RECONSTRUCTION  <span style='font-size:24px'>When Architecture Becomes a Crime Scene</span> <span style='color:#94A3B8; font-size:14px'>How a missing idempotency guarantee cascades through decoupled microservices and forces the human engineer to act as the missing CPU.</span>"]:::header
+
+    %% Phase 1 Sequence Flow
+    H1 --> P1_Title
+
+    P1_Title[" Phase 1: The Ambient Machine Failure (3:14 AM)  <span style='color:#EF4444; font-size:12px'>NON-DETERMINISTIC DRIFT</span>"]:::sectionTitle
+
+    subgraph Phase 1 Sequence
+        direction TB
+        S1[" 1. Client Application  (POST /v1/checkout/charge) <span style='color:#94A3B8; font-size:12px'>High-value VIP customer transaction initiated without strict caller idempotency key.</span>"]:::statusNormal
+
+        S2[" 2. Tokenization Service  (Ingress Payload & Encrypt) <span style='color:#94A3B8; font-size:12px'>Pod encounters mid-flight SIGKILL / OOM memory fault; drops connection without writing state.</span>"]:::statusCritical
+
+        S3[" 3. Payment Gateway  (Blind Retry Policy) <span style='color:#94A3B8; font-size:12px'>Robbed of definitive response, retries the unkeyed charge into the ledger.</span>"]:::statusWarning
+
+        S4[" 4. Ledger Core  (State Mutation) <span style='color:#94A3B8; font-size:12px'>Executes double-debit against customer account; state integrity permanently corrupted.</span>"]:::statusCritical
+
+        S1 --> S2 --> S3 --> S4
+    end
+
+    P1_Title --> S1
+
+    %% Reconciliation Bridge (State Transition)
+    S4 --> Trans
+    Trans[" 03:14:22 UTC  PagerDuty Severity 1 Alert Triggered <span style='font-size:12px'>Automated Tooling Fails to Self-Heal</span>"]:::transition
+
+    %% Phase 2 Diagnostic Grid
+    Trans --> P2_Title
+
+    P2_Title[" Phase 2: The SRE Tax (Human Reconstitution)  <span style='color:#F59E0B; font-size:12px'>COGNITIVE METABOLIZATION</span>"]:::sectionTitle
+
+    P2_Title --> C1
+    P2_Title --> C2
+    P2_Title --> C3
+
+    subgraph Phase 2 Grid
+        direction LR
+        C1[" Log Stitching:  6 Services <span style='color:#94A3B8; font-size:12px'>Cross-referencing fragmented, asynchronous traces to reconstruct a vanished timeline.</span>"]:::gridCard
+
+        C2[" State Validation:  Manual Race Audit <span style='color:#94A3B8; font-size:12px'>Engineer manually executes row-level diffing between gateways and DB records.</span>"]:::gridCard
+
+        C3[" Reconciliation:  Compensating DB Write <span style='color:#94A3B8; font-size:12px'>Injecting manual reversal records directly to balance corrupted ledger state.</span>"]:::gridCard
+    end
+
+    %% Architectural Takeaway
+    C1 --> TA
+    C2 --> TA
+    C3 --> TA
+
+    TA[" Axiom: The Ultimate Limit of Hyper-Scale  <span style='color:#F8FAFC'> &quot;The true bottleneck of a distributed system is never compute elasticity or network bandwidth—it is the cognitive load imposed on its maintainers.&quot; </span>  <span style='color:#F59E0B'> Remedy:  Restore absolute domain isolation and enforce strict, deterministic boundary contracts.</span>"]:::takeaway
