@@ -50,9 +50,33 @@ test('PNG SVG removes HTML labels without losing journey text or altering the pr
   const { serialized, root } = serializeDiagramSvg(preview, { rasterSafe: true });
   assert.equal(root.querySelectorAll('foreignObject').length, 0);
   assert.equal(root.querySelectorAll('text').length, 2);
-  assert.equal(root.querySelectorAll('tspan').length, 2);
+  assert.equal(root.querySelectorAll('text > tspan').length, 2);
+  assert.equal(root.querySelectorAll('tspan').length, 4);
   assert.match(root.textContent, /Journey/);
   assert.match(root.textContent, /Follow up/);
   assert.equal(new window.DOMParser().parseFromString(serialized, 'image/svg+xml').querySelector('parsererror'), null);
   assert.equal(preview.querySelectorAll('foreignObject').length, 2);
+});
+
+test('PNG SVG preserves allowlisted rich-label font size and color', () => {
+  const { window } = new JSDOM('<div id="preview"></div>');
+  window.document.getElementById('preview').innerHTML =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100">' +
+    '<g><foreignObject x="20" y="20" width="260" height="60">' +
+    '<div xmlns="http://www.w3.org/1999/xhtml"><span style="font-size:16px;color:#f8fafc">Main<br>' +
+    '<span style="font-size:12px;color:#94a3b8">Secondary</span></span></div>' +
+    '</foreignObject></g></svg>';
+  globalThis.XMLSerializer = window.XMLSerializer;
+  globalThis.DOMParser = window.DOMParser;
+  globalThis.window = window;
+  globalThis.document = window.document;
+  globalThis.Node = window.Node;
+  globalThis.Element = window.Element;
+
+  const { root } = serializeDiagramSvg(window.document.querySelector('svg'), { rasterSafe: true });
+  const secondary = [...root.querySelectorAll('text tspan tspan')]
+    .find((span) => span.textContent === 'Secondary');
+  assert.ok(secondary);
+  assert.equal(secondary.getAttribute('font-size'), '12px');
+  assert.match(secondary.getAttribute('fill'), /(?:#94a3b8|rgb\(148, 163, 184\))/i);
 });

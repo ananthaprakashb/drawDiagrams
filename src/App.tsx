@@ -162,8 +162,8 @@ export default function App() {
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'strict',
-          // Native SVG text keeps PNG canvases readable across browsers.
-          htmlLabels: false,
+          // Safe, allowlisted rich subtext is converted to SVG text for PNG.
+          htmlLabels: true,
           theme: themeMap[draft.theme],
           fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
         });

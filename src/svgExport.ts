@@ -1,8 +1,57 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+type TextRun = {
+  text: string;
+  color: string;
+  fontFamily: string;
+  fontSize: number;
+  fontStyle: string;
+  fontWeight: string;
+};
+
 export function pngScale(width: number, height: number) {
   // Keep enough resolution for broad diagrams while bounding canvas memory.
   return Math.min(2, 8192 / Math.max(width, height), Math.sqrt(24_000_000 / (width * height)) * 0.999);
+}
+
+function htmlLabelLines(content: Element) {
+  const lines: TextRun[][] = [[]];
+  const nextLine = () => {
+    if (lines.at(-1)?.length) lines.push([]);
+  };
+
+  const visit = (node: Node) => {
+    if (node.nodeType === 3) {
+      const text = (node.textContent || '').replace(/\s+/g, ' ');
+      if (!text) return;
+      const parent = node.parentElement || content;
+      const style = window.getComputedStyle(parent);
+      lines.at(-1)?.push({
+        text,
+        color: style.color || '#222222',
+        fontFamily: style.fontFamily || 'sans-serif',
+        fontSize: parseFloat(style.fontSize) || 16,
+        fontStyle: style.fontStyle || 'normal',
+        fontWeight: style.fontWeight || 'normal',
+      });
+      return;
+    }
+
+    if (node.nodeType !== 1) return;
+    const element = node as Element;
+    if (element.localName.toLowerCase() === 'br') {
+      nextLine();
+      return;
+    }
+    for (const child of element.childNodes) visit(child);
+  };
+
+  visit(content);
+  for (const line of lines) {
+    if (line[0]) line[0].text = line[0].text.trimStart();
+    if (line.at(-1)) line.at(-1)!.text = line.at(-1)!.text.trimEnd();
+  }
+  return lines.filter((line) => line.some((run) => run.text));
 }
 
 function replaceHtmlLabels(svg: SVGSVGElement, renderedSvg: SVGSVGElement) {
@@ -26,23 +75,34 @@ function replaceHtmlLabels(svg: SVGSVGElement, renderedSvg: SVGSVGElement) {
       const content = renderedLabels[index].firstElementChild || renderedLabels[index];
       const style = window.getComputedStyle(label);
       const fontSize = parseFloat(style.fontSize) || 16;
-      const lineHeight = parseFloat(style.lineHeight) || fontSize * 1.5;
-      const lines = ((content as HTMLElement).innerText || content.textContent || '').trim().split(/\r?\n/);
+      const lines = htmlLabelLines(content);
+      const lineHeights = lines.map((line) => Math.max(...line.map((run) => run.fontSize * 1.5), fontSize * 1.5));
+      const totalHeight = lineHeights.reduce((sum, value) => sum + value, 0);
       const text = document.createElementNS(SVG_NS, 'text');
       text.setAttribute('x', String(x + width / 2));
-      text.setAttribute('y', String(y + height / 2));
       text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('dominant-baseline', 'middle');
       text.setAttribute('font-size', `${fontSize}px`);
       text.setAttribute('font-family', style.fontFamily || 'sans-serif');
       text.setAttribute('font-weight', style.fontWeight || 'normal');
       text.setAttribute('fill', style.color || '#222222');
+      let baseline = y + height / 2 - totalHeight / 2;
       lines.forEach((line, index) => {
-        const tspan = document.createElementNS(SVG_NS, 'tspan');
-        tspan.setAttribute('x', String(x + width / 2));
-        tspan.setAttribute('dy', String(index ? lineHeight : -(lines.length - 1) * lineHeight / 2));
-        tspan.textContent = line;
-        text.appendChild(tspan);
+        baseline += lineHeights[index] * 0.8;
+        const row = document.createElementNS(SVG_NS, 'tspan');
+        row.setAttribute('x', String(x + width / 2));
+        row.setAttribute('y', String(baseline));
+        for (const run of line) {
+          const span = document.createElementNS(SVG_NS, 'tspan');
+          span.setAttribute('font-size', `${run.fontSize}px`);
+          span.setAttribute('font-family', run.fontFamily);
+          span.setAttribute('font-style', run.fontStyle);
+          span.setAttribute('font-weight', run.fontWeight);
+          span.setAttribute('fill', run.color);
+          span.textContent = run.text;
+          row.appendChild(span);
+        }
+        text.appendChild(row);
+        baseline += lineHeights[index] * 0.2;
       });
       parent.insertBefore(text, foreignObject);
     }
