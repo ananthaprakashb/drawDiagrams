@@ -45,9 +45,9 @@ The template catalogs are intentionally data-driven in `src/templates.ts` and `s
 
 | Audience | Templates | Layouts |
 | --- | --- | --- |
-| Software engineers | Software platform stack, Engineering delivery roadmap, Cloud security landscape, Full-stack SRE toolchain | Layered stack, Roadmap |
-| Data engineers | Modern data platform, Modern data and AI ecosystem, Data quality pyramid | Layered stack, Pyramid |
-| AI engineers | AI agent stack, AI system readiness | Layered stack, Comparison |
+| Software engineers | Software platform stack, Engineering delivery roadmap | Layered stack, Roadmap |
+| Data engineers | Modern data platform, Data quality pyramid | Layered stack, Pyramid |
+| AI engineers | AI agent stack, AI system readiness, AI algorithms and data structures | Layered stack, Comparison |
 | Project managers | Project lifecycle, Project trade-off canvas | Roadmap, Comparison |
 | Management | Management operating model, Delegation boundaries, Engineering career map | Layered stack, Pyramid |
 
